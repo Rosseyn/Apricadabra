@@ -4,7 +4,7 @@ A system that turns Loupedeck (and future Stream Deck+) dials and buttons into a
 
 ## System Architecture
 
-Three independent processes communicating over a single named pipe:
+Three independent processes communicating over named pipes (one pipe instance per connected plugin):
 
 ```
 +------------------+     +------------------+
@@ -48,11 +48,12 @@ Three independent processes communicating over a single named pipe:
 
 ### Key Decisions
 
-- **Named pipes** for IPC -- low latency, no network dependency, natural on Windows
+- **Named pipes** for IPC -- low latency, no network dependency, natural on Windows. The core creates a new pipe instance (`CreateNamedPipe`) for each connected client, all on `\\.\pipe\apricadabra`.
 - **Bidirectional** -- plugins send input events, core sends state updates back for LCD display
 - **Core owns all vJoy interaction** -- single point of truth for axis/button state
 - **Each plugin is a thin adapter** -- translates device SDK events into the common protocol
 - **vJoy behind a trait** -- `VirtualJoystick` trait allows swapping in `uinput` (Linux) or macOS backends in the future
+- **Async runtime (tokio)** -- the core handles multiple pipe connections, decay timers, button timing, and heartbeats concurrently; an async runtime is required, not optional
 
 ### Platform
 
@@ -68,7 +69,27 @@ Windows only. vJoy is a Windows kernel driver. Loupedeck and Stream Deck officia
 
 ## IPC Protocol
 
-Bidirectional newline-delimited JSON over `\\.\pipe\apricadabra`.
+Bidirectional newline-delimited JSON over `\\.\pipe\apricadabra`. Protocol version: 1.
+
+### Value Ranges
+
+- Axis values are normalized 0.0-1.0 in the protocol. The core maps these to vJoy's native 0-32767 range internally before calling `SetAxis`.
+- Button numbers are 1-128 (matching vJoy's supported range).
+- Axis identifiers are 1-8 mapping to: X, Y, Z, Rx, Ry, Rz, Slider1, Slider2.
+
+### Connection Handshake
+
+When a plugin connects, it sends a hello message. The core responds with the current full state:
+
+```json
+// Plugin -> Core (first message after connect)
+{ "type": "hello", "version": 1, "name": "loupedeck" }
+
+// Core -> Plugin (immediate response)
+{ "type": "welcome", "version": 1, "axes": { "1": 0.73, "2": 0.50 }, "buttons": { "1": true } }
+```
+
+If the core does not support the plugin's protocol version, it responds with an error and closes the connection.
 
 ### Plugin -> Core (input events)
 
@@ -77,7 +98,6 @@ Bidirectional newline-delimited JSON over `\\.\pipe\apricadabra`.
 { "type": "axis", "axis": 1, "mode": "hold", "diff": 3, "sensitivity": 0.5 }
 { "type": "axis", "axis": 2, "mode": "spring", "diff": -1, "sensitivity": 0.5, "decayRate": 0.3 }
 { "type": "axis", "axis": 3, "mode": "detent", "diff": 1, "steps": 5 }
-{ "type": "axis", "axis": 4, "mode": "relative", "diff": 2, "sensitivity": 0.5 }
 
 // Buttons
 { "type": "button", "button": 1, "mode": "momentary", "state": "down" }
@@ -99,25 +119,37 @@ Bidirectional newline-delimited JSON over `\\.\pipe\apricadabra`.
 
 Inverted axis modes negate the `diff` value in the plugin before sending -- the core does not need to know about inversion.
 
-### Core -> Plugin (state updates and health)
+The `longshort` mode does not use a top-level `button` field. The core uses `shortButton` and `longButton` exclusively to determine which vJoy buttons to fire.
+
+### Core -> Plugin (state updates, health, errors)
 
 ```json
-// State broadcast (~60Hz, only on change)
+// State broadcast (~60Hz, batched per tick -- all axis/button changes within one tick are sent in a single message)
 { "type": "state", "axes": { "1": 0.73, "2": 0.50, "3": 0.20 }, "buttons": { "1": true, "5": false } }
 
 // Heartbeat ping (every 2-3 seconds)
 { "type": "heartbeat" }
+
+// Error (displayed on plugin LCD/UI)
+{ "type": "error", "code": "vjoy_not_installed", "message": "vJoy driver not found. Please install vJoy." }
+{ "type": "error", "code": "vjoy_device_busy", "message": "vJoy device 1 is acquired by another application." }
+{ "type": "error", "code": "vjoy_device_missing", "message": "vJoy device 1 is not configured. Run vJoy config utility." }
+
+// Shutdown notification (lets plugins show "Core shutting down" instead of "Disconnected")
+{ "type": "shutdown" }
 ```
 
 ### Axis + Button Combo
 
-The `axis_button` action type is handled entirely in the plugin. The plugin registers as both an adjustment and a command, forwarding dial turns as axis events and encoder presses as button events. The core receives them as separate axis and button messages.
+The `Axis + Button` action is handled entirely in the plugin. The plugin registers as both an adjustment and a command, forwarding dial turns as standard axis events and encoder presses as momentary button events. The core receives them as separate `axis` and `button` messages -- it has no knowledge of the combo relationship.
 
 ## Action Library
 
 15 actions total, each with Action Editor UI for user configuration via dropdowns and sliders.
 
 ### Axis Adjustments (8 actions)
+
+Inverted variants share a C# class with their non-inverted counterpart. Each axis adjustment class registers two actions (normal and inverted) using the Action Editor's checkbox or a second `AddParameter` registration. The inverted variant simply negates the `diff` before sending to the core.
 
 | Action | Editor Controls | Encoder Press Behavior |
 |---|---|---|
@@ -128,9 +160,11 @@ The `axis_button` action type is handled entirely in the plugin. The plugin regi
 | vJoy Axis - Relative | Axis dropdown, Sensitivity slider | Reset to center |
 | vJoy Axis - Relative (Inverted) | Axis dropdown, Sensitivity slider | Reset to center |
 | vJoy Axis - Detent Step | Axis dropdown, Step count slider | Reset to center |
-| vJoy Axis + Button | Axis dropdown, Button dropdown, Sensitivity slider | Fires selected button |
+| vJoy Axis + Button | Axis dropdown, Button dropdown, Sensitivity slider | Fires selected button (momentary) |
 
 Axis dropdown options: X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 (vJoy axes 1-8).
+
+Note: "Reset to center" means reset to 0.5 (midpoint). For axes where idle is not center (e.g. a throttle where idle is 0.0), the user should use Hold mode and not press the encoder, or use a Reset Axis action mapped to a separate button with a configurable target value. Future enhancement: make reset target configurable per action.
 
 ### Button Commands (6 actions)
 
@@ -153,12 +187,11 @@ Axis dropdown options: X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 (vJoy axes 1-8).
 
 ### Responsibilities
 
-1. **Named pipe server** -- listens on `\\.\pipe\apricadabra`, accepts multiple simultaneous plugin connections
+1. **Named pipe server** -- listens on `\\.\pipe\apricadabra`, creates a new pipe instance for each connected client. This is standard Windows named pipe behavior -- unlike TCP, each connection requires a new `CreateNamedPipe` call.
 2. **Axis state manager** -- maintains current value (0.0-1.0) for each of 8 axes, applies mode-specific behavior:
    - Hold: accumulate diffs scaled by sensitivity, clamp to 0.0-1.0
-   - Spring: accumulate diffs, tick a decay timer back toward 0.5
-   - Relative: pass-through increments (game interprets as relative)
-   - Detent: snap to nearest step position (e.g. 0%, 25%, 50%, 75%, 100% for 5 steps)
+   - Spring: accumulate diffs scaled by sensitivity, decay toward 0.5 using exponential decay (`value = center + (value - center) * decay_factor`) each tick at ~60Hz. `decayRate` (0.0-1.0) maps to the decay factor -- 0.0 is instant snap, 1.0 is no decay.
+   - Detent: `diff` is the number of steps to advance (positive) or retreat (negative). Axis snaps to the nearest step position. E.g. with 5 steps, positions are 0.0, 0.25, 0.5, 0.75, 1.0.
 3. **Button state manager** -- tracks on/off state, handles timing logic:
    - Momentary: direct press/release passthrough
    - Toggle: flip state on each press
@@ -166,9 +199,10 @@ Axis dropdown options: X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 (vJoy axes 1-8).
    - Double press: two pulses with configurable delay
    - Rapid fire: repeated pulses at configurable rate while held
    - Long/short: start timer on press, fire short button if released before threshold, long button if held past threshold
-4. **vJoy FFI bridge** -- loads `vJoyInterface.dll`, calls `AcquireVJD`, `SetAxis`, `SetBtn`, `RelinquishVJD` through the `VirtualJoystick` trait
-5. **State broadcaster** -- on every state change, pushes current axis/button values to all connected plugins, throttled to ~60Hz
+4. **vJoy FFI bridge** -- loads `vJoyInterface.dll`, calls `AcquireVJD`, `SetAxis`, `SetBtn`, `RelinquishVJD` through the `VirtualJoystick` trait. Maps 0.0-1.0 axis values to vJoy's 0-32767 range.
+5. **State broadcaster** -- on every state change, pushes current axis/button values to all connected plugins. Changes are batched per ~60Hz tick -- all changes within one tick are sent in a single `state` message.
 6. **Heartbeat** -- pings each client every 2-3 seconds, drops clients that miss 2 consecutive acks
+7. **Logging** -- structured logging to `%APPDATA%/Apricadabra/logs/`. Info level by default, debug level enabled via `config.json` or `--debug` flag. Logs rotation (keep last 5 files, max 10MB each).
 
 ### VirtualJoystick Trait
 
@@ -181,19 +215,23 @@ trait VirtualJoystick {
 }
 ```
 
-Initial implementation: `VJoyBackend` (Windows, vJoyInterface.dll FFI).
+`button` parameter valid range: 1-128. `value` parameter valid range: 0.0-1.0. Implementations map to backend-specific ranges internally.
+
+Initial implementation: `VJoyBackend` (Windows, vJoyInterface.dll FFI). vJoy provides a C header -- use `bindgen` to generate Rust bindings for compile-time type safety, with dynamic linking to the DLL at runtime.
+
 Future: `UInputBackend` (Linux), `MacHidBackend` (macOS DriverKit).
 
 ### Spring Decay Loop
 
-A single timer at ~60Hz checks all spring-mode axes and nudges them toward center at their configured decay rate. This is the only time-based behavior besides button timing -- everything else is event-driven.
+A single timer at ~60Hz checks all spring-mode axes and applies exponential decay toward center. Decay model: `value = center + (value - center) * decay_factor` per tick. This is the only time-based behavior besides button timing -- everything else is event-driven.
 
 ### Configuration
 
-A `config.json` in the core's directory for:
+A `config.json` in `%APPDATA%/Apricadabra/`:
 - vJoy device ID (default: 1)
 - Global default sensitivity (overridden by per-action settings from Action Editor)
 - Global default decay rate for spring mode
+- Log level (info/debug)
 
 Per-action settings (sensitivity, decay rate, step count, button timing) arrive in the IPC messages from the plugin's Action Editor configuration.
 
@@ -203,20 +241,23 @@ Per-action settings (sensitivity, decay rate, step count, button timing) arrive 
 
 - `ApricadabraPlugin : Plugin` -- entry point
 - `ApricadabraApplication : ClientApplication` -- app registration
-- 8 `ActionEditorAdjustment` subclasses (one per axis mode)
+- 5 `ActionEditorAdjustment` subclasses (Hold, Spring, Relative each register normal + inverted variants; Detent; AxisButton)
 - 6 `ActionEditorCommand` subclasses (one per button mode)
 - 1 `ActionEditorCommand` for Reset Axis
-- `CoreConnection` -- named pipe client, auto-launch, reconnection
+- `CoreConnection` -- named pipe client, auto-launch, reconnection, hello/welcome handshake
 
 ### Lifecycle
 
 1. Plugin loads in Logi Plugin Service
 2. `CoreConnection` attempts to connect to `\\.\pipe\apricadabra`
 3. If core not running -> spawns `apricadabra-core.exe` -> retries with backoff (100ms, 200ms, 400ms... up to 5s)
-4. On dial turn -> reads Action Editor params (axis, sensitivity, mode) -> sends JSON to core
-5. On button press -> reads params (button number, mode, timing) -> sends JSON to core
-6. On state update from core -> updates LCD display via `GetAdjustmentValue()` (e.g. "73%")
-7. On disconnect -> shows "Disconnected" on action icons, attempts respawn + reconnect with backoff
+4. On connect -> sends `hello` message, receives `welcome` with current state
+5. On dial turn -> reads Action Editor params (axis, sensitivity, mode) -> sends JSON to core
+6. On button press -> reads params (button number, mode, timing) -> sends JSON to core
+7. On state update from core -> updates LCD display via `GetAdjustmentValue()` (e.g. "73%")
+8. On error from core -> displays error message on action icons
+9. On shutdown message from core -> shows "Core shutting down", does not attempt respawn
+10. On disconnect (broken pipe) -> shows "Disconnected" on action icons, attempts respawn + reconnect with backoff
 
 ### Display Feedback
 
@@ -229,8 +270,9 @@ Each axis adjustment overrides `GetAdjustmentValue()` to return the current axis
 - **Core not running**: plugin spawns it, retries connection with exponential backoff (100ms to 5s)
 - **Core crashes**: plugin detects broken pipe, shows "Disconnected" on LCD, attempts respawn + reconnect
 - **Plugin disconnects**: core cleans up that client, continues running for other connected plugins
-- **All plugins disconnect**: core holds axis state for ~30 seconds with gradual decay to center, then resets. If a plugin reconnects during decay, it receives current (mid-decay) state.
-- **LPS crashes and restarts**: plugin reconnects to existing core (if it survived), receives full state dump, LCD displays are immediately accurate
+- **All plugins disconnect**: core holds axis state for ~30 seconds with gradual exponential decay to center, then resets. If a plugin reconnects during decay, it receives current (mid-decay) state via `welcome` message.
+- **LPS crashes and restarts**: plugin reconnects to existing core (if it survived), sends `hello`, receives `welcome` with full state dump, LCD displays are immediately accurate
+- **Core shutting down**: core sends `{"type": "shutdown"}` to all plugins before closing pipes. Plugins display "Core shutting down" and do not attempt respawn.
 
 ### Heartbeat
 
@@ -240,9 +282,9 @@ Each axis adjustment overrides `GetAdjustmentValue()` to return the current axis
 
 ### vJoy Errors
 
-- **vJoy not installed**: core logs clear error message, exits
-- **vJoy device not configured**: core reports which device ID it tried, suggests running vJoy config utility
-- **Device acquired by another app**: core retries briefly, then reports failure to plugins for display
+- **vJoy not installed**: core sends `error` message to all plugins, logs error, exits
+- **vJoy device not configured**: core sends `error` message reporting which device ID it tried
+- **Device acquired by another app**: core retries briefly, then sends `error` message to plugins for display
 - **Axis value out of range**: clamp to 0.0-1.0, never pass invalid values to FFI
 
 ### Input Conflicts
@@ -254,9 +296,8 @@ Each axis adjustment overrides `GetAdjustmentValue()` to return the current axis
 ### Disconnect Decay
 
 When all plugins disconnect, instead of snapping axes to center or holding indefinitely:
-- All axes gradually decay toward center (0.5) over ~30 seconds
-- Decay rate matches the spring mode decay behavior
-- If a plugin reconnects mid-decay, it receives current axis positions via state dump
+- All axes gradually decay toward center (0.5) over ~30 seconds using exponential decay
+- If a plugin reconnects mid-decay, it receives current axis positions via `welcome` state dump
 - Prevents phantom stuck inputs in games while avoiding jarring jumps on brief disconnects
 
 ## Project Structure
@@ -267,21 +308,21 @@ apricadabra/
 │   ├── Cargo.toml
 │   └── src/
 │       ├── main.rs                    # Entry, pipe server, event loop
-│       ├── ipc.rs                     # Named pipe server, JSON protocol
-│       ├── axis.rs                    # Axis state manager (hold/spring/detent/relative)
+│       ├── ipc.rs                     # Named pipe server, JSON protocol, handshake
+│       ├── axis.rs                    # Axis state manager (hold/spring/detent)
 │       ├── button.rs                  # Button state manager (momentary/toggle/pulse/etc)
-│       ├── vjoy.rs                    # VirtualJoystick trait + vJoy FFI backend
+│       ├── vjoy.rs                    # VirtualJoystick trait + vJoy FFI backend (bindgen)
 │       └── broadcast.rs              # State broadcaster to connected plugins
 │
 ├── loupedeck-plugin/                  # C# .NET 8
 │   ├── src/
 │   │   ├── ApricadabraPlugin.cs
 │   │   ├── ApricadabraApplication.cs
-│   │   ├── CoreConnection.cs          # Named pipe client + auto-launch
+│   │   ├── CoreConnection.cs          # Named pipe client + auto-launch + handshake
 │   │   ├── Actions/
-│   │   │   ├── AxisHoldAdjustment.cs
-│   │   │   ├── AxisSpringAdjustment.cs
-│   │   │   ├── AxisRelativeAdjustment.cs
+│   │   │   ├── AxisHoldAdjustment.cs          # Registers Hold and Hold (Inverted)
+│   │   │   ├── AxisSpringAdjustment.cs        # Registers Spring and Spring (Inverted)
+│   │   │   ├── AxisRelativeAdjustment.cs      # Registers Relative and Relative (Inverted)
 │   │   │   ├── AxisDetentAdjustment.cs
 │   │   │   ├── AxisButtonAdjustment.cs
 │   │   │   ├── ButtonMomentaryCommand.cs
@@ -317,6 +358,8 @@ The core exe needs to be accessible to the Loupedeck plugin for auto-launch. Opt
 - Install to `%APPDATA%/Apricadabra/` with plugin configured to look there
 - Separate installer that places both components
 
+Note: The Logi Plugin Service may sandbox plugins. Whether a plugin can spawn an arbitrary `.exe` needs to be verified early in implementation. If not possible, the core would need to run as a Windows service or be launched via a separate tray app / startup entry.
+
 ## Supported Devices
 
 | Device | Dials | Buttons | LCD Feedback |
@@ -332,9 +375,10 @@ All devices use the same IPC protocol. Device-specific behavior is handled entir
 ## Dependencies
 
 ### Core (Rust)
+- `tokio` -- async runtime with named pipe support
 - `serde` / `serde_json` -- JSON serialization
-- `windows-named-pipes` or `tokio` with named pipe support -- IPC
-- `libloading` or raw FFI -- vJoyInterface.dll loading
+- `bindgen` (build dependency) -- generate FFI bindings from vJoy C header
+- `tracing` / `tracing-subscriber` -- structured logging
 
 ### Loupedeck Plugin (C#)
 - Logi Actions SDK (NuGet or SDK reference)
