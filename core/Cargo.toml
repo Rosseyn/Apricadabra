@@ -1,0 +1,17 @@
+[package]
+name = "apricadabra-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+anyhow = "1"
+dirs = "5"
+
+[dev-dependencies]
+tokio-test = "0.4"
