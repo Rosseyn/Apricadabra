@@ -109,8 +109,8 @@ If the core does not support the plugin's protocol version, it responds with an 
 { "type": "button", "button": 6, "mode": "longshort", "state": "down", "shortButton": 6, "longButton": 7, "threshold": 500 }
 { "type": "button", "button": 6, "mode": "longshort", "state": "up", "shortButton": 6, "longButton": 7, "threshold": 500 }
 
-// Reset
-{ "type": "reset", "axis": 1 }
+// Reset axis to configured position
+{ "type": "reset", "axis": 1, "position": 0.5 }
 
 // Heartbeat response
 { "type": "heartbeat_ack" }
@@ -144,41 +144,52 @@ The `Axis + Button` action is handled entirely in the plugin. The plugin registe
 
 ## Action Library
 
-13 actions total, each with Action Editor UI for user configuration via dropdowns and sliders.
+3 actions total, each with Action Editor UI for user configuration. Mode-specific controls are shown/hidden dynamically via `ControlValueChanged` events based on the selected mode.
 
-### Axis Adjustments (6 actions)
+### vJoy Axis (Adjustment)
 
-Inverted variants share a C# class with their non-inverted counterpart. Each axis adjustment class registers two actions (normal and inverted) using the Action Editor's checkbox or a second `AddParameter` registration. The inverted variant simply negates the `diff` before sending to the core.
+For dials/encoders. Mode dropdown selects the axis behavior; additional controls appear based on mode.
 
-| Action | Editor Controls | Encoder Press Behavior |
+| Editor Control | Applies To | Description |
 |---|---|---|
-| vJoy Axis - Hold | Axis dropdown, Sensitivity slider | Reset to center |
-| vJoy Axis - Hold (Inverted) | Axis dropdown, Sensitivity slider | Reset to center |
-| vJoy Axis - Spring | Axis dropdown, Sensitivity slider, Decay rate slider | Reset to center |
-| vJoy Axis - Spring (Inverted) | Axis dropdown, Sensitivity slider, Decay rate slider | Reset to center |
-| vJoy Axis - Detent Step | Axis dropdown, Step count slider | Reset to center |
-| vJoy Axis + Button | Axis dropdown, Button dropdown, Sensitivity slider | Fires selected button (momentary) |
+| Mode dropdown | All | Hold, Spring, Detent |
+| Axis dropdown | All | X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 (vJoy axes 1-8) |
+| Invert checkbox | All | Negates diff before sending to core |
+| Sensitivity slider | Hold, Spring | Scales diff magnitude |
+| Reset position slider | All | 0-100%, default 50%. Encoder press resets axis to this value |
+| Decay rate slider | Spring | How quickly axis returns to center (0.0 = instant, 1.0 = never) |
+| Step count slider | Detent | Number of discrete positions (e.g. 5 = 0%, 25%, 50%, 75%, 100%) |
 
-Axis dropdown options: X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 (vJoy axes 1-8).
+Encoder press sends: `{ "type": "reset", "axis": N, "position": P }`
 
-Note: "Reset to center" means reset to 0.5 (midpoint). For axes where idle is not center (e.g. a throttle where idle is 0.0), the user should use Hold mode and not press the encoder, or use a Reset Axis action mapped to a separate button with a configurable target value. Future enhancement: make reset target configurable per action.
+### vJoy Axis + Button (Adjustment)
 
-### Button Commands (6 actions)
+For dials/encoders where dial controls an axis and pressing the encoder fires a vJoy button.
 
-| Action | Editor Controls |
+| Editor Control | Description |
 |---|---|
-| vJoy Button - Momentary | Button dropdown (1-128) |
-| vJoy Button - Toggle | Button dropdown (1-128) |
-| vJoy Button - Pulse | Button dropdown (1-128) |
-| vJoy Button - Double Press | Button dropdown (1-128), Delay slider (ms between presses) |
-| vJoy Button - Rapid Fire | Button dropdown (1-128), Rate slider (ms interval) |
-| vJoy Button - Long/Short | Short button dropdown, Long button dropdown, Threshold slider (ms) |
+| Axis dropdown | X, Y, Z, Rx, Ry, Rz, Slider1, Slider2 |
+| Invert checkbox | Negates diff before sending to core |
+| Sensitivity slider | Scales diff magnitude |
+| Button dropdown | vJoy button (1-128) fired on encoder press (momentary) |
 
-### Utility (1 action)
+Dial turn sends axis event (hold mode). Encoder press sends momentary button event.
 
-| Action | Editor Controls |
-|---|---|
-| vJoy Reset Axis | Axis dropdown |
+### vJoy Button (Command)
+
+For buttons/keys. Mode dropdown selects the button behavior; additional controls appear based on mode.
+
+| Editor Control | Applies To | Description |
+|---|---|---|
+| Mode dropdown | All | Momentary, Toggle, Pulse, Double Press, Rapid Fire, Long/Short, Reset Axis |
+| Button dropdown (1-128) | Momentary, Toggle, Pulse, Double, Rapid | Which vJoy button to control |
+| Delay slider (ms) | Double Press | Time between the two pulses |
+| Rate slider (ms) | Rapid Fire | Interval between repeated pulses |
+| Short button dropdown | Long/Short | vJoy button for quick tap |
+| Long button dropdown | Long/Short | vJoy button for held press |
+| Threshold slider (ms) | Long/Short | Hold duration to distinguish short from long |
+| Axis dropdown | Reset Axis | Which axis to reset |
+| Reset position slider (0-100%) | Reset Axis | Target value for the reset |
 
 ## Core Feeder App (Rust)
 
@@ -238,9 +249,9 @@ Per-action settings (sensitivity, decay rate, step count, button timing) arrive 
 
 - `ApricadabraPlugin : Plugin` -- entry point
 - `ApricadabraApplication : ClientApplication` -- app registration
-- 4 `ActionEditorAdjustment` subclasses (Hold and Spring each register normal + inverted variants; Detent; AxisButton)
-- 6 `ActionEditorCommand` subclasses (one per button mode)
-- 1 `ActionEditorCommand` for Reset Axis
+- `AxisAdjustment : ActionEditorAdjustment` -- vJoy Axis action (mode/axis/sensitivity/etc via Action Editor)
+- `AxisButtonAdjustment : ActionEditorAdjustment` -- vJoy Axis + Button combo action
+- `ButtonCommand : ActionEditorCommand` -- vJoy Button action (mode/button/timing via Action Editor)
 - `CoreConnection` -- named pipe client, auto-launch, reconnection, hello/welcome handshake
 
 ### Lifecycle
@@ -317,17 +328,9 @@ apricadabra/
 │   │   ├── ApricadabraApplication.cs
 │   │   ├── CoreConnection.cs          # Named pipe client + auto-launch + handshake
 │   │   ├── Actions/
-│   │   │   ├── AxisHoldAdjustment.cs          # Registers Hold and Hold (Inverted)
-│   │   │   ├── AxisSpringAdjustment.cs        # Registers Spring and Spring (Inverted)
-│   │   │   ├── AxisDetentAdjustment.cs
-│   │   │   ├── AxisButtonAdjustment.cs
-│   │   │   ├── ButtonMomentaryCommand.cs
-│   │   │   ├── ButtonToggleCommand.cs
-│   │   │   ├── ButtonPulseCommand.cs
-│   │   │   ├── ButtonDoublePressCommand.cs
-│   │   │   ├── ButtonRapidFireCommand.cs
-│   │   │   ├── ButtonLongShortCommand.cs
-│   │   │   └── ResetAxisCommand.cs
+│   │   │   ├── AxisAdjustment.cs              # vJoy Axis (Hold/Spring/Detent via mode dropdown)
+│   │   │   ├── AxisButtonAdjustment.cs        # vJoy Axis + Button combo
+│   │   │   └── ButtonCommand.cs               # vJoy Button (all modes via mode dropdown)
 │   │   └── Display/
 │   │       └── StateDisplay.cs        # LCD feedback rendering
 │   └── metadata/
