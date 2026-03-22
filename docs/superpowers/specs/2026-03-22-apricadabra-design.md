@@ -98,7 +98,6 @@ If the core does not support the plugin's protocol version, it responds with an 
 { "type": "axis", "axis": 1, "mode": "hold", "diff": 3, "sensitivity": 0.5 }
 { "type": "axis", "axis": 2, "mode": "spring", "diff": -1, "sensitivity": 0.5, "decayRate": 0.3 }
 { "type": "axis", "axis": 3, "mode": "detent", "diff": 1, "steps": 5 }
-
 // Buttons
 { "type": "button", "button": 1, "mode": "momentary", "state": "down" }
 { "type": "button", "button": 1, "mode": "momentary", "state": "up" }
@@ -145,9 +144,9 @@ The `Axis + Button` action is handled entirely in the plugin. The plugin registe
 
 ## Action Library
 
-15 actions total, each with Action Editor UI for user configuration via dropdowns and sliders.
+13 actions total, each with Action Editor UI for user configuration via dropdowns and sliders.
 
-### Axis Adjustments (8 actions)
+### Axis Adjustments (6 actions)
 
 Inverted variants share a C# class with their non-inverted counterpart. Each axis adjustment class registers two actions (normal and inverted) using the Action Editor's checkbox or a second `AddParameter` registration. The inverted variant simply negates the `diff` before sending to the core.
 
@@ -157,8 +156,6 @@ Inverted variants share a C# class with their non-inverted counterpart. Each axi
 | vJoy Axis - Hold (Inverted) | Axis dropdown, Sensitivity slider | Reset to center |
 | vJoy Axis - Spring | Axis dropdown, Sensitivity slider, Decay rate slider | Reset to center |
 | vJoy Axis - Spring (Inverted) | Axis dropdown, Sensitivity slider, Decay rate slider | Reset to center |
-| vJoy Axis - Relative | Axis dropdown, Sensitivity slider | Reset to center |
-| vJoy Axis - Relative (Inverted) | Axis dropdown, Sensitivity slider | Reset to center |
 | vJoy Axis - Detent Step | Axis dropdown, Step count slider | Reset to center |
 | vJoy Axis + Button | Axis dropdown, Button dropdown, Sensitivity slider | Fires selected button (momentary) |
 
@@ -190,8 +187,8 @@ Note: "Reset to center" means reset to 0.5 (midpoint). For axes where idle is no
 1. **Named pipe server** -- listens on `\\.\pipe\apricadabra`, creates a new pipe instance for each connected client. This is standard Windows named pipe behavior -- unlike TCP, each connection requires a new `CreateNamedPipe` call.
 2. **Axis state manager** -- maintains current value (0.0-1.0) for each of 8 axes, applies mode-specific behavior:
    - Hold: accumulate diffs scaled by sensitivity, clamp to 0.0-1.0
-   - Spring: accumulate diffs scaled by sensitivity, decay toward 0.5 using exponential decay (`value = center + (value - center) * decay_factor`) each tick at ~60Hz. `decayRate` (0.0-1.0) maps to the decay factor -- 0.0 is instant snap, 1.0 is no decay.
-   - Detent: `diff` is the number of steps to advance (positive) or retreat (negative). Axis snaps to the nearest step position. E.g. with 5 steps, positions are 0.0, 0.25, 0.5, 0.75, 1.0.
+   - Spring: accumulate diffs scaled by sensitivity, decay toward 0.5 using exponential decay (`value = center + (value - center) * decay_factor`) each tick at ~60Hz. `decayRate` (0.0-1.0) maps to the decay factor -- 0.0 is instant snap, 1.0 is no decay
+   - Detent: `diff` is the number of steps to advance (positive) or retreat (negative). Axis snaps to the nearest step position. E.g. with 5 steps, positions are 0.0, 0.25, 0.5, 0.75, 1.0
 3. **Button state manager** -- tracks on/off state, handles timing logic:
    - Momentary: direct press/release passthrough
    - Toggle: flip state on each press
@@ -241,7 +238,7 @@ Per-action settings (sensitivity, decay rate, step count, button timing) arrive 
 
 - `ApricadabraPlugin : Plugin` -- entry point
 - `ApricadabraApplication : ClientApplication` -- app registration
-- 5 `ActionEditorAdjustment` subclasses (Hold, Spring, Relative each register normal + inverted variants; Detent; AxisButton)
+- 4 `ActionEditorAdjustment` subclasses (Hold and Spring each register normal + inverted variants; Detent; AxisButton)
 - 6 `ActionEditorCommand` subclasses (one per button mode)
 - 1 `ActionEditorCommand` for Reset Axis
 - `CoreConnection` -- named pipe client, auto-launch, reconnection, hello/welcome handshake
@@ -322,7 +319,6 @@ apricadabra/
 │   │   ├── Actions/
 │   │   │   ├── AxisHoldAdjustment.cs          # Registers Hold and Hold (Inverted)
 │   │   │   ├── AxisSpringAdjustment.cs        # Registers Spring and Spring (Inverted)
-│   │   │   ├── AxisRelativeAdjustment.cs      # Registers Relative and Relative (Inverted)
 │   │   │   ├── AxisDetentAdjustment.cs
 │   │   │   ├── AxisButtonAdjustment.cs
 │   │   │   ├── ButtonMomentaryCommand.cs
