@@ -23,30 +23,35 @@ namespace Loupedeck.ApricadabraPlugin
             this.Description = "Map a dial to a vJoy axis";
             this.GroupName = "Apricadabra";
 
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ModeControl, labelText: "Mode")
+                    .SetRequired()
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: AxisControl, labelText: "Axis")
+                    .SetRequired()
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorCheckbox(name: InvertControl, labelText: "Invert")
             );
-            // Sensitivity: 1-100, user interprets as percentage
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: SensitivityControl, labelText: "Sensitivity (1-100)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: SensitivityControl, labelText: "Sensitivity")
+                    .SetValues(1, 100, 1, 20)
+                    .SetFormatString("{0}%")
             );
-            // Reset position: 0-100
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: ResetPositionControl, labelText: "Reset Position (0-100)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: ResetPositionControl, labelText: "Reset Position")
+                    .SetValues(0, 100, 1, 50)
+                    .SetFormatString("{0}%")
             );
-            // Decay rate: 0-100 (Spring only)
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: DecayRateControl, labelText: "Decay Rate (0-100)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: DecayRateControl, labelText: "Decay Rate")
+                    .SetValues(0, 100, 1, 95)
+                    .SetFormatString("{0}%")
             );
-            // Step count: 2-20 (Detent only)
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: StepCountControl, labelText: "Steps (2-20)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: StepCountControl, labelText: "Steps")
+                    .SetValues(2, 20, 1, 5)
             );
 
             this.ActionEditor.ListboxItemsRequested += OnListboxItemsRequested;

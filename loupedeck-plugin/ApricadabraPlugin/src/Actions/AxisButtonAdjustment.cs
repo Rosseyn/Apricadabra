@@ -20,17 +20,21 @@ namespace Loupedeck.ApricadabraPlugin
             this.Description = "Dial controls axis, encoder press fires button";
             this.GroupName = "Apricadabra";
 
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: AxisControl, labelText: "Axis")
+                    .SetRequired()
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorCheckbox(name: InvertControl, labelText: "Invert")
             );
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: SensitivityControl, labelText: "Sensitivity (1-100)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: SensitivityControl, labelText: "Sensitivity")
+                    .SetValues(1, 100, 1, 20)
+                    .SetFormatString("{0}%")
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ButtonControl, labelText: "Button")
+                    .SetRequired()
             );
 
             this.ActionEditor.ListboxItemsRequested += OnListboxItemsRequested;

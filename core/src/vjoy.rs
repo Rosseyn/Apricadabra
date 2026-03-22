@@ -114,10 +114,7 @@ unsafe impl Send for VJoyBackend {}
 #[cfg(windows)]
 impl VJoyBackend {
     pub fn new() -> anyhow::Result<Self> {
-        let lib = unsafe {
-            libloading::Library::new("vJoyInterface.dll")
-                .map_err(|e| anyhow::anyhow!("Failed to load vJoyInterface.dll: {e}. Is vJoy installed?"))?
-        };
+        let lib = unsafe { Self::load_library()? };
 
         // Check if vJoy is enabled
         unsafe {
@@ -133,6 +130,29 @@ impl VJoyBackend {
             device_id: 0,
             lib: Arc::new(lib),
         })
+    }
+
+    unsafe fn load_library() -> anyhow::Result<libloading::Library> {
+        // Try loading from system PATH first
+        if let Ok(lib) = libloading::Library::new("vJoyInterface.dll") {
+            return Ok(lib);
+        }
+
+        // Try known vJoy installation paths
+        let candidates = [
+            r"C:\Program Files\vJoy\x64\vJoyInterface.dll",
+            r"C:\Program Files (x86)\vJoy\x86\vJoyInterface.dll",
+            r"C:\Program Files\vJoy\x86\vJoyInterface.dll",
+        ];
+
+        for path in &candidates {
+            if let Ok(lib) = libloading::Library::new(path) {
+                tracing::info!("Loaded vJoyInterface.dll from {path}");
+                return Ok(lib);
+            }
+        }
+
+        anyhow::bail!("Failed to load vJoyInterface.dll. Is vJoy installed?")
     }
 
     fn axis_to_usage(axis: Axis) -> u32 {
@@ -153,13 +173,25 @@ impl VJoyBackend {
 impl VirtualJoystick for VJoyBackend {
     fn acquire(&mut self, device_id: u8) -> anyhow::Result<()> {
         self.device_id = device_id as u32;
+        // vJoy status constants:
+        // VJD_STAT_OWN  = 0 — owned by this caller (already acquired)
+        // VJD_STAT_FREE = 1 — free, can be acquired
+        // VJD_STAT_BUSY = 2 — owned by another caller
+        // VJD_STAT_MISS = 3 — device doesn't exist
         unsafe {
             let get_status: libloading::Symbol<unsafe extern "C" fn(u32) -> i32> =
                 self.lib.get(b"GetVJDStatus")?;
             let status = get_status(self.device_id);
-            // VJD_STAT_FREE = 0
-            if status != 0 {
-                anyhow::bail!("vJoy device {} is not free (status: {})", device_id, status);
+
+            match status {
+                0 => {
+                    tracing::info!("vJoy device {} already owned by us", device_id);
+                    return Ok(());
+                }
+                1 => {} // Free — proceed to acquire
+                2 => anyhow::bail!("vJoy device {} is owned by another process", device_id),
+                3 => anyhow::bail!("vJoy device {} does not exist", device_id),
+                _ => anyhow::bail!("vJoy device {} has unknown status {}", device_id, status),
             }
 
             let acquire: libloading::Symbol<unsafe extern "C" fn(u32) -> i32> =

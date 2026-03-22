@@ -23,36 +23,43 @@ namespace Loupedeck.ApricadabraPlugin
             this.Description = "Map a button to a vJoy button or axis reset";
             this.GroupName = "Apricadabra";
 
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ModeControl, labelText: "Mode")
+                    .SetRequired()
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ButtonControl, labelText: "Button")
+                    .SetRequired()
             );
             // Double press delay
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: DelayControl, labelText: "Delay ms (Double)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: DelayControl, labelText: "Delay ms (Double)")
+                    .SetValues(10, 200, 5, 50)
             );
             // Rapid fire rate
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: RateControl, labelText: "Rate ms (Rapid)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: RateControl, labelText: "Rate ms (Rapid)")
+                    .SetValues(20, 500, 10, 100)
             );
             // Long/Short buttons
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ShortButtonControl, labelText: "Short Press Button")
             );
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: LongButtonControl, labelText: "Long Press Button")
             );
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: ThresholdControl, labelText: "Hold Threshold ms")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: ThresholdControl, labelText: "Hold Threshold ms")
+                    .SetValues(100, 2000, 50, 500)
             );
             // Reset Axis controls
-            this.ActionEditor.AddControl(
+            this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: AxisControl, labelText: "Axis")
             );
-            this.ActionEditor.AddControl(
-                new ActionEditorTextbox(name: ResetPositionControl, labelText: "Reset Position (0-100)")
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: ResetPositionControl, labelText: "Reset Position")
+                    .SetValues(0, 100, 1, 50)
+                    .SetFormatString("{0}%")
             );
 
             this.ActionEditor.ListboxItemsRequested += OnListboxItemsRequested;
