@@ -35,8 +35,23 @@ async fn main() -> anyhow::Result<()> {
         info!("Debug mode enabled via --debug flag");
     }
 
-    // TODO: Replace MockJoystick with VJoyBackend when FFI is implemented
-    let joystick = Box::new(MockJoystick::new());
+    #[cfg(windows)]
+    let joystick: Box<dyn apricadabra_core::vjoy::VirtualJoystick> = {
+        match apricadabra_core::vjoy::VJoyBackend::new() {
+            Ok(backend) => Box::new(backend),
+            Err(e) => {
+                tracing::error!("vJoy initialization failed: {e}");
+                tracing::warn!("Falling back to mock joystick (no game output)");
+                Box::new(MockJoystick::new())
+            }
+        }
+    };
+
+    #[cfg(not(windows))]
+    let joystick: Box<dyn apricadabra_core::vjoy::VirtualJoystick> = {
+        tracing::warn!("Not on Windows — using mock joystick");
+        Box::new(MockJoystick::new())
+    };
     let server = Server::new(config, joystick);
 
     // Handle Ctrl+C for graceful shutdown
