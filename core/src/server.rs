@@ -166,7 +166,14 @@ impl Server {
                 result = cmd_socket.recv_from(&mut cmd_buf) => {
                     if let Ok((len, _addr)) = result {
                         if let Ok(text) = std::str::from_utf8(&cmd_buf[..len]) {
-                            if let Ok(msg) = serde_json::from_str::<ClientMessage>(text.trim()) {
+                            let trimmed = text.trim();
+                            // Check for shutdown command
+                            if trimmed.contains("\"shutdown\"") {
+                                info!("Received shutdown command via UDP");
+                                let _ = joystick.lock().await.release();
+                                break;
+                            }
+                            if let Ok(msg) = serde_json::from_str::<ClientMessage>(trimmed) {
                                 Self::process_command(&self.config, &axis_mgr, &button_mgr, msg).await;
                             }
                         }

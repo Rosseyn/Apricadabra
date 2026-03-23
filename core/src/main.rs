@@ -8,6 +8,14 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Handle --stop flag: send UDP shutdown and exit
+    if std::env::args().any(|a| a == "--stop") {
+        let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
+        socket.send_to(b"{\"type\":\"shutdown\"}", "127.0.0.1:19871")?;
+        println!("Shutdown signal sent.");
+        return Ok(());
+    }
+
     let config = Config::load();
 
     // Set up logging
@@ -57,19 +65,22 @@ async fn main() -> anyhow::Result<()> {
     // Handle Ctrl+C for graceful shutdown
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
 
-    let server_handle = tokio::spawn(async move {
+    let mut server_handle = tokio::spawn(async move {
         server.run(shutdown_rx).await
     });
 
-    tokio::signal::ctrl_c().await?;
-    info!("Shutting down...");
-    let _ = shutdown_tx.send(true);
-
-    // Give server time to broadcast shutdown and clean up
-    let _ = tokio::time::timeout(
-        std::time::Duration::from_secs(2),
-        server_handle,
-    ).await;
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            info!("Ctrl+C received, shutting down...");
+            let _ = shutdown_tx.send(true);
+        }
+        result = &mut server_handle => {
+            info!("Server exited");
+            if let Ok(Err(e)) = result {
+                tracing::error!("Server error: {e}");
+            }
+        }
+    }
 
     Ok(())
 }
