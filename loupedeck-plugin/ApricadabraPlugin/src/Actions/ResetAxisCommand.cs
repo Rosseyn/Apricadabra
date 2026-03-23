@@ -14,7 +14,7 @@ namespace Loupedeck.ApricadabraPlugin
         {
             this.DisplayName = "vJoy Reset Axis";
             this.Description = "Reset a vJoy axis to a configured position";
-            this.GroupName = "Apricadabra###Reset";
+            this.GroupName = "Apricadabra";
 
             this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: AxisControl, labelText: "Axis")

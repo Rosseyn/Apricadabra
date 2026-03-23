@@ -15,7 +15,7 @@ namespace Loupedeck.ApricadabraPlugin
         {
             this.DisplayName = "vJoy Button";
             this.Description = "Map a button to a vJoy button";
-            this.GroupName = "Apricadabra###Buttons";
+            this.GroupName = "Apricadabra";
 
             this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ButtonControl, labelText: "Button")
