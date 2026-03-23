@@ -7,14 +7,13 @@ namespace Loupedeck.ApricadabraPlugin
     {
         private CoreConnection Connection => ((ApricadabraPlugin)this.Plugin).Connection;
 
+        private const string ButtonControl = "btnId";
         private const string ModeControl = "btnMode";
-        private const string ButtonControl = "btnButton";
-        private const string DelayControl = "btnDelay";
 
         public ButtonCommand()
         {
             this.DisplayName = "vJoy Button";
-            this.Description = "Map a button to a vJoy button";
+            this.Description = "Fire a vJoy button";
             this.GroupName = "Apricadabra";
 
             this.ActionEditor.AddControlEx(
@@ -24,10 +23,6 @@ namespace Loupedeck.ApricadabraPlugin
             this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: ModeControl, labelText: "Mode")
                     .SetRequired()
-            );
-            this.ActionEditor.AddControlEx(
-                new ActionEditorSlider(name: DelayControl, labelText: "Delay ms (Double Press)")
-                    .SetValues(10, 200, 5, 50)
             );
 
             this.ActionEditor.ListboxItemsRequested += OnListboxItemsRequested;
@@ -39,20 +34,19 @@ namespace Loupedeck.ApricadabraPlugin
             {
                 e.AddItem("pulse", "Pulse", "Brief press/release");
                 e.AddItem("toggle", "Toggle", "On/off on each press");
-                e.AddItem("double", "Double Press", "Two rapid pulses");
             }
             else if (e.ControlName == ButtonControl)
             {
-                for (int i = 1; i <= 128; i++)
+                for (int i = 1; i <= 32; i++)
                     e.AddItem(i.ToString(), $"Button {i}", null);
             }
         }
 
         protected override bool RunCommand(ActionEditorActionParameters actionParameters)
         {
-            if (!actionParameters.TryGetString(ModeControl, out var mode)) return false;
             if (!actionParameters.TryGetString(ButtonControl, out var btnStr)) return false;
             if (!int.TryParse(btnStr, out var button)) return false;
+            if (!actionParameters.TryGetString(ModeControl, out var mode)) return false;
 
             var msg = new JsonObject
             {
@@ -61,24 +55,11 @@ namespace Loupedeck.ApricadabraPlugin
                 ["mode"] = mode,
             };
 
-            switch (mode)
-            {
-                case "toggle":
-                    msg["state"] = "down";
-                    _ = Connection?.SendAsync(msg);
-                    break;
+            if (mode == "toggle")
+                msg["state"] = "down";
 
-                case "pulse":
-                    _ = Connection?.SendAsync(msg);
-                    break;
-
-                case "double":
-                    actionParameters.TryGetString(DelayControl, out var delayStr);
-                    msg["delay"] = int.TryParse(delayStr, out var delay) ? delay : 50;
-                    _ = Connection?.SendAsync(msg);
-                    break;
-            }
-
+            PluginLog.Info($"Sending button: btn={button} mode={mode}");
+            _ = Connection?.SendAsync(msg);
             return true;
         }
     }

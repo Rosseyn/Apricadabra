@@ -6,6 +6,7 @@ namespace Loupedeck.ApricadabraPlugin
     {
         public CoreConnection Connection { get; private set; }
         public StateDisplay State { get; private set; }
+        private bool _wasConnected;
 
         public override Boolean UsesApplicationApiOnly => true;
         public override Boolean HasNoApplication => true;
@@ -24,24 +25,32 @@ namespace Loupedeck.ApricadabraPlugin
             this.Connection.OnStateUpdate += msg =>
             {
                 this.State.UpdateFromState(msg);
-                PluginLog.Info("Connected to core, received state update");
-                this.OnPluginStatusChanged(Loupedeck.PluginStatus.Normal, "Connected", null, null);
+                if (!_wasConnected)
+                {
+                    _wasConnected = true;
+                    PluginLog.Info("Connected to core");
+                    this.OnPluginStatusChanged(Loupedeck.PluginStatus.Normal, "Connected", null, null);
+                }
             };
 
             this.Connection.OnError += (code, message) =>
             {
                 this.State.ErrorMessage = message;
+                PluginLog.Error($"Core error: {code} - {message}");
                 this.OnPluginStatusChanged(Loupedeck.PluginStatus.Error, message, null, null);
             };
 
             this.Connection.OnDisconnected += () =>
             {
+                _wasConnected = false;
                 this.State.ConnectionStatus = "Disconnected";
+                PluginLog.Warning("Disconnected from core");
                 this.OnPluginStatusChanged(Loupedeck.PluginStatus.Warning, "Disconnected from core", null, null);
             };
 
             this.Connection.OnShutdown += () =>
             {
+                _wasConnected = false;
                 this.State.ConnectionStatus = "Core shutting down";
                 this.OnPluginStatusChanged(Loupedeck.PluginStatus.Warning, "Core shutting down", null, null);
             };

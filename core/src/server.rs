@@ -4,26 +4,22 @@ use crate::config::Config;
 use crate::protocol::*;
 use crate::vjoy::{Axis, VirtualJoystick};
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
-use tokio::sync::{broadcast, mpsc, Mutex};
+use tokio::net::UdpSocket;
+use tokio::sync::{mpsc, Mutex};
 use tokio::time::{self, Duration, Instant};
 use tracing::{error, info, warn};
 
-// Pipe name is configurable via Config.pipe_name (default: \\.\pipe\apricadabra)
-// This allows integration tests to use a unique pipe name.
 const PROTOCOL_VERSION: u32 = 1;
-const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(3);
-const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(9); // 3 missed beats
+const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
+const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
 const TICK_INTERVAL: Duration = Duration::from_millis(16); // ~60Hz
 
-/// Inbound message from a client with client ID.
-struct ClientInput {
-    client_id: u64,
-    message: ClientMessage,
-}
+// UDP ports: core listens for commands, sends broadcasts
+const UDP_COMMAND_PORT: u16 = 19871;
+const UDP_BROADCAST_PORT: u16 = 19872;
 
 /// Core server state.
 pub struct Server {
@@ -37,7 +33,6 @@ impl Server {
     }
 
     pub async fn run(mut self, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) -> anyhow::Result<()> {
-        // Acquire vJoy device
         if let Err(e) = self.joystick.acquire(self.config.vjoy_device_id) {
             error!("Failed to acquire vJoy device {}: {e}", self.config.vjoy_device_id);
             return Err(e);
@@ -48,21 +43,17 @@ impl Server {
         let button_mgr = Arc::new(Mutex::new(ButtonManager::new()));
         let joystick = Arc::new(Mutex::new(self.joystick));
 
-        // Channel for client messages -> main loop
-        let (input_tx, mut input_rx) = mpsc::channel::<ClientInput>(256);
-
-        // Broadcast channel for server -> all clients
-        let (broadcast_tx, _) = broadcast::channel::<String>(256);
-
         let mut client_counter: u64 = 0;
         let connected_clients = Arc::new(std::sync::atomic::AtomicU64::new(0));
-
-        // Channel for client disconnect notifications
         let (disconnect_tx, mut disconnect_rx) = mpsc::channel::<u64>(32);
 
-        // Spawn pipe accept loop
-        let accept_input_tx = input_tx.clone();
-        let accept_broadcast_tx = broadcast_tx.clone();
+        // UDP sockets
+        let cmd_socket = UdpSocket::bind(format!("127.0.0.1:{UDP_COMMAND_PORT}")).await?;
+        let broadcast_socket = UdpSocket::bind("127.0.0.1:0").await?;
+        let broadcast_dest: std::net::SocketAddr = format!("127.0.0.1:{UDP_BROADCAST_PORT}").parse()?;
+        info!("UDP command port: {UDP_COMMAND_PORT}, broadcast target: {broadcast_dest}");
+
+        // Pipe accept loop (handshake + heartbeat only)
         let accept_axis = axis_mgr.clone();
         let accept_button = button_mgr.clone();
         let accept_clients = connected_clients.clone();
@@ -94,15 +85,13 @@ impl Server {
 
                 accept_clients.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
-                let tx = accept_input_tx.clone();
-                let broadcast_rx = accept_broadcast_tx.subscribe();
                 let axis = accept_axis.clone();
                 let button = accept_button.clone();
                 let clients = accept_clients.clone();
                 let disc_tx = accept_disconnect_tx.clone();
 
                 tokio::spawn(async move {
-                    Self::handle_client(client_id, pipe, tx, broadcast_rx, axis, button).await;
+                    Self::handle_client(client_id, pipe, axis, button).await;
                     clients.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                     let _ = disc_tx.send(client_id).await;
                     info!("Client {client_id} disconnected");
@@ -110,8 +99,16 @@ impl Server {
             }
         });
 
-        // Main tick loop: process inputs, update state, broadcast, decay
+        // Main tick loop
         let mut tick_interval = time::interval(TICK_INTERVAL);
+        let mut last_change = Instant::now();
+        let mut last_broadcast = Instant::now();
+        let mut has_pending_broadcast = false;
+        let debounce = Duration::from_millis(100);
+        let max_interval = Duration::from_millis(250);
+
+        // UDP command receive buffer
+        let mut cmd_buf = [0u8; 4096];
 
         loop {
             tokio::select! {
@@ -119,21 +116,12 @@ impl Server {
                     let mut axes = axis_mgr.lock().await;
                     let mut buttons = button_mgr.lock().await;
 
-                    // Process spring decay
-                    axes.tick_spring_decay();
-
-                    // Process disconnect decay if active
-                    axes.tick_disconnect_decay();
-
-                    // Process pending button actions (pulse releases, double press timing)
                     buttons.process_pending();
 
-                    // Collect changes and broadcast
                     let axis_changes = axes.take_changed();
                     let button_changes = buttons.take_changed();
 
                     if !axis_changes.is_empty() || !button_changes.is_empty() {
-                        // Update vJoy
                         let mut joy = joystick.lock().await;
                         for (&id, &value) in &axis_changes {
                             if let Some(axis) = Axis::from_id(id) {
@@ -144,71 +132,37 @@ impl Server {
                             let _ = joy.set_button(id, pressed);
                         }
 
-                        // Broadcast state to plugins
-                        let msg = ServerMessage::State {
-                            axes: axis_changes,
-                            buttons: button_changes,
-                        };
-                        if let Ok(json) = serde_json::to_string(&msg) {
-                            let _ = broadcast_tx.send(json);
+                        last_change = Instant::now();
+                        has_pending_broadcast = true;
+                    }
+
+                    // Broadcast state via UDP: debounce 100ms, forced max every 250ms
+                    if has_pending_broadcast {
+                        let since_change = last_change.elapsed();
+                        let since_broadcast = last_broadcast.elapsed();
+
+                        if since_change >= debounce || since_broadcast >= max_interval {
+                            last_broadcast = Instant::now();
+                            has_pending_broadcast = false;
+
+                            let msg = ServerMessage::State {
+                                axes: axes.get_all(),
+                                buttons: buttons.get_all(),
+                            };
+                            if let Ok(json) = serde_json::to_string(&msg) {
+                                let _ = broadcast_socket.send_to(json.as_bytes(), broadcast_dest).await;
+                            }
                         }
                     }
                 }
 
-                Some(input) = input_rx.recv() => {
-                    match input.message {
-                        ClientMessage::Axis { axis, mode, diff, sensitivity, decay_rate, steps } => {
-                            let sens = sensitivity.unwrap_or(self.config.default_sensitivity);
-                            let mut axes = axis_mgr.lock().await;
-                            match mode {
-                                AxisMode::Hold => axes.apply_hold(axis, diff, sens),
-                                AxisMode::Spring => {
-                                    let dr = decay_rate.unwrap_or(self.config.default_decay_rate);
-                                    axes.apply_spring(axis, diff, sens, dr);
-                                }
-                                AxisMode::Detent => {
-                                    axes.apply_detent(axis, diff, steps.unwrap_or(5));
-                                }
+                // Receive commands via UDP
+                result = cmd_socket.recv_from(&mut cmd_buf) => {
+                    if let Ok((len, _addr)) = result {
+                        if let Ok(text) = std::str::from_utf8(&cmd_buf[..len]) {
+                            if let Ok(msg) = serde_json::from_str::<ClientMessage>(text.trim()) {
+                                Self::process_command(&self.config, &axis_mgr, &button_mgr, msg).await;
                             }
-                        }
-                        ClientMessage::Button { button, mode, state, delay, rate, short_button, long_button, threshold } => {
-                            let mut buttons = button_mgr.lock().await;
-                            match mode {
-                                ButtonMode::Momentary => match state {
-                                    Some(ButtonState::Down) => buttons.momentary_down(button),
-                                    Some(ButtonState::Up) => buttons.momentary_up(button),
-                                    None => {}
-                                },
-                                ButtonMode::Toggle => {
-                                    if matches!(state, Some(ButtonState::Down)) {
-                                        buttons.toggle(button);
-                                    }
-                                }
-                                ButtonMode::Pulse => buttons.pulse(button),
-                                ButtonMode::Double => buttons.double_press(button, delay.unwrap_or(50)),
-                                ButtonMode::Rapid => match state {
-                                    Some(ButtonState::Down) => buttons.rapid_start(button, rate.unwrap_or(100)),
-                                    Some(ButtonState::Up) => buttons.rapid_stop(button),
-                                    None => {}
-                                },
-                                ButtonMode::LongShort => {
-                                    let sb = short_button.unwrap_or(button);
-                                    let lb = long_button.unwrap_or(button);
-                                    let th = threshold.unwrap_or(500);
-                                    match state {
-                                        Some(ButtonState::Down) => buttons.longshort_down(sb, lb, th),
-                                        Some(ButtonState::Up) => { buttons.longshort_up(sb, lb, th); }
-                                        None => {}
-                                    }
-                                }
-                            }
-                        }
-                        ClientMessage::Reset { axis, position } => {
-                            info!("Reset axis {axis} to position {position}");
-                            axis_mgr.lock().await.reset(axis, position);
-                        }
-                        ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck => {
-                            // Handled in client handler
                         }
                     }
                 }
@@ -216,20 +170,13 @@ impl Server {
                 Some(client_id) = disconnect_rx.recv() => {
                     info!("Client {client_id} cleanup");
                     if connected_clients.load(std::sync::atomic::Ordering::Relaxed) == 0 {
-                        info!("All clients disconnected, starting decay");
-                        axis_mgr.lock().await.start_disconnect_decay();
+                        info!("All clients disconnected");
                     }
                 }
 
                 _ = shutdown_rx.changed() => {
                     if *shutdown_rx.borrow() {
-                        info!("Broadcasting shutdown to all clients");
-                        if let Ok(json) = serde_json::to_string(&ServerMessage::Shutdown) {
-                            let _ = broadcast_tx.send(json);
-                        }
-                        // Give clients a moment to receive the message
-                        time::sleep(Duration::from_millis(100)).await;
-                        // Release vJoy
+                        info!("Shutting down");
                         let _ = joystick.lock().await.release();
                         break;
                     }
@@ -240,11 +187,70 @@ impl Server {
         Ok(())
     }
 
+    async fn process_command(
+        config: &Config,
+        axis_mgr: &Arc<Mutex<AxisManager>>,
+        button_mgr: &Arc<Mutex<ButtonManager>>,
+        msg: ClientMessage,
+    ) {
+        match msg {
+            ClientMessage::Axis { axis, mode, diff, sensitivity, decay_rate, steps } => {
+                let sens = sensitivity.unwrap_or(config.default_sensitivity);
+                let mut axes = axis_mgr.lock().await;
+                match mode {
+                    AxisMode::Hold => axes.apply_hold(axis, diff, sens),
+                    AxisMode::Spring => {
+                        let dr = decay_rate.unwrap_or(config.default_decay_rate);
+                        axes.apply_spring(axis, diff, sens, dr);
+                    }
+                    AxisMode::Detent => {
+                        axes.apply_detent(axis, diff, steps.unwrap_or(5));
+                    }
+                }
+            }
+            ClientMessage::Button { button, mode, state, delay, rate, short_button, long_button, threshold } => {
+                let mut buttons = button_mgr.lock().await;
+                match mode {
+                    ButtonMode::Momentary => match state {
+                        Some(ButtonState::Down) => buttons.momentary_down(button),
+                        Some(ButtonState::Up) => buttons.momentary_up(button),
+                        None => {}
+                    },
+                    ButtonMode::Toggle => {
+                        if matches!(state, Some(ButtonState::Down)) {
+                            buttons.toggle(button);
+                        }
+                    }
+                    ButtonMode::Pulse => buttons.pulse(button),
+                    ButtonMode::Double => buttons.double_press(button, delay.unwrap_or(50)),
+                    ButtonMode::Rapid => match state {
+                        Some(ButtonState::Down) => buttons.rapid_start(button, rate.unwrap_or(100)),
+                        Some(ButtonState::Up) => buttons.rapid_stop(button),
+                        None => {}
+                    },
+                    ButtonMode::LongShort => {
+                        let sb = short_button.unwrap_or(button);
+                        let lb = long_button.unwrap_or(button);
+                        let th = threshold.unwrap_or(500);
+                        match state {
+                            Some(ButtonState::Down) => buttons.longshort_down(sb, lb, th),
+                            Some(ButtonState::Up) => { buttons.longshort_up(sb, lb, th); }
+                            None => {}
+                        }
+                    }
+                }
+            }
+            ClientMessage::Reset { axis, position } => {
+                info!("Reset axis {axis} to position {position}");
+                axis_mgr.lock().await.reset(axis, position);
+            }
+            ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck => {}
+        }
+    }
+
     async fn handle_client(
         client_id: u64,
         pipe: NamedPipeServer,
-        input_tx: mpsc::Sender<ClientInput>,
-        mut broadcast_rx: broadcast::Receiver<String>,
         axis_mgr: Arc<Mutex<AxisManager>>,
         button_mgr: Arc<Mutex<ButtonManager>>,
     ) {
@@ -276,7 +282,6 @@ impl Server {
                     return;
                 }
 
-                // Send welcome with current state
                 let axes = axis_mgr.lock().await.get_all();
                 let buttons = button_mgr.lock().await.get_all();
                 let welcome = ServerMessage::Welcome { version: PROTOCOL_VERSION, axes, buttons };
@@ -284,11 +289,12 @@ impl Server {
                     return;
                 }
             }
-            _ => return, // First message must be hello
+            _ => return,
         }
 
-        line.clear(); // Clear hello message before entering read loop
+        line.clear();
 
+        // Pipe only handles heartbeat now
         let mut heartbeat_interval = time::interval(HEARTBEAT_INTERVAL);
         let mut last_ack = Instant::now();
 
@@ -296,27 +302,15 @@ impl Server {
             tokio::select! {
                 result = reader.read_line(&mut line) => {
                     match result {
-                        Ok(0) | Err(_) => break, // Client disconnected
+                        Ok(0) | Err(_) => break,
                         Ok(_) => {
                             if let Ok(msg) = serde_json::from_str::<ClientMessage>(line.trim()) {
-                                match msg {
-                                    ClientMessage::HeartbeatAck => {
-                                        last_ack = Instant::now();
-                                    }
-                                    _ => {
-                                        let _ = input_tx.send(ClientInput { client_id, message: msg }).await;
-                                    }
+                                if matches!(msg, ClientMessage::HeartbeatAck) {
+                                    last_ack = Instant::now();
                                 }
                             }
                             line.clear();
                         }
-                    }
-                }
-
-                Ok(broadcast_msg) = broadcast_rx.recv() => {
-                    let msg = format!("{broadcast_msg}\n");
-                    if writer.write_all(msg.as_bytes()).await.is_err() {
-                        break;
                     }
                 }
 
