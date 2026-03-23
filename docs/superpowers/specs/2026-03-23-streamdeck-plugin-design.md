@@ -21,10 +21,23 @@ The Stream Deck plugin is a new client to the existing Apricadabra core. Both pl
 │          Apricadabra Core (Rust)        │
 │  Named Pipe: handshake + heartbeat      │
 │  UDP 19871: commands (plugin → core)    │
-│  UDP 19872: broadcasts (core → plugin)  │
+│  UDP broadcast: per-client registration │
 │  vJoy FFI: axis/button → virtual HID   │
 └─────────────────────────────────────────┘
 ```
+
+### UDP Broadcast — Per-Client Registration
+
+The current design sends broadcasts to a hardcoded port (19872). This fails when two plugins run simultaneously — only one can bind the port. The fix: each client registers its preferred broadcast port during the handshake.
+
+**Protocol change**: Add an optional `broadcastPort` field to the Hello message:
+```json
+{"type":"hello","version":1,"name":"streamdeck","broadcastPort":19873}
+```
+
+The core maintains a set of registered broadcast destinations. On each state broadcast, it sends to all registered addresses. When a client disconnects, its registration is removed.
+
+**Migration**: The Loupedeck plugin continues using port 19872. The Stream Deck plugin uses 19873. Both receive broadcasts simultaneously. The core falls back to the hardcoded 19872 if no `broadcastPort` is provided in Hello (backward compatibility).
 
 ### Project Structure
 
@@ -54,7 +67,7 @@ apricadabra/
 ### Technology
 
 - **Language**: TypeScript (Node.js 20+)
-- **SDK**: Elgato Stream Deck SDK v3 (`@elgato/sdk`)
+- **SDK**: Elgato Stream Deck SDK v2 (`@elgato/sdk`)
 - **Scaffolding**: `@elgato/cli` (`streamdeck create`)
 
 ## Actions
@@ -64,7 +77,7 @@ apricadabra/
 **Controllers**: `["Encoder"]` — appears only on dial slots (SD+, SD+ XL, Studio, Galleon).
 
 **Behavior**:
-- **Rotation**: Sends axis command via UDP. Mode determines behavior (hold/spring/detent).
+- **Rotation**: Sends axis command via UDP. Mode determines behavior (hold/spring/detent). For detent mode, clamp ticks to +/-1 to ensure single-step movement regardless of rotation speed.
 - **Dial press**: Fires configurable vJoy button pulse.
 - **LCD feedback**: `$B1` layout — axis name at top, percentage value, progress bar. Updated in real-time from UDP state broadcasts via `setFeedback()`.
 
@@ -79,6 +92,8 @@ apricadabra/
 | Steps | range | 2-20 (step 1) | 5 | mode = Detent |
 | Encoder Press Button | dropdown | None, Button 1-128 | None | always |
 
+**Sensitivity conversion**: UI value 1-100 maps to protocol value via `sensitivity = uiValue / 1000`. So 20% UI = 0.02 protocol, 100% UI = 0.1 protocol.
+
 **Protocol messages sent**:
 ```json
 {"type":"axis","axis":1,"mode":"hold","diff":3,"sensitivity":0.02}
@@ -91,7 +106,7 @@ apricadabra/
 
 **Controllers**: `["Keypad"]` — appears only on button slots.
 
-All 6 button modes exposed (Stream Deck has key-up events, unlike Loupedeck):
+All 6 button modes exposed. Stream Deck has key-up events (`onKeyUp`), enabling Momentary, Rapid Fire, and Long/Short modes that the Loupedeck plugin cannot support (Loupedeck SDK lacks key-up on `ActionEditorCommand`). This is a deliberate capability difference.
 
 | Mode | Behavior | Key-up needed |
 |------|----------|---------------|
@@ -145,19 +160,27 @@ All 6 button modes exposed (Stream Deck has key-up events, unlike Loupedeck):
 
 ### Named Pipe
 - Node.js `net` module connecting to `\\.\pipe\apricadabra`
-- Sends Hello `{"type":"hello","version":1,"name":"streamdeck"}`
+- Sends Hello with broadcast port: `{"type":"hello","version":1,"name":"streamdeck","broadcastPort":19873}`
 - Receives Welcome with current state
-- Reads heartbeats, sends acks
-- Line-delimited JSON
+- Reads heartbeats, sends acks: `{"type":"heartbeat_ack"}`
+- Handles Error messages: `{"type":"error","code":"...","message":"..."}`
+- Handles Shutdown message: `{"type":"shutdown"}` — triggers graceful disconnect
+- Line-delimited JSON (newline-terminated)
 
 ### UDP
 - `dgram` module
-- Commands: send datagrams to `127.0.0.1:19871`
-- Broadcasts: bind to `127.0.0.1:19872`, parse incoming state
+- Commands: send datagrams to `127.0.0.1:19871` (fire-and-forget)
+- Broadcasts: bind to `127.0.0.1:19873`, parse incoming state JSON
 
 ### Auto-launch
 - On connect failure, spawn `apricadabra-core.exe` from `%APPDATA%\Apricadabra\`
+- Fallback: look next to the plugin's own directory
 - Exponential backoff: 100ms → 200ms → 400ms → ... → 5s cap
+
+### Reconnection
+- On mid-session disconnect (pipe read error, heartbeat timeout), wait 1 second then reconnect
+- Same exponential backoff as initial connection
+- During reconnect, actions continue to function but LCD shows "Disconnected"
 
 ### State Display
 - In-memory Map of axis values (number) and button states (boolean)
@@ -165,32 +188,48 @@ All 6 button modes exposed (Stream Deck has key-up events, unlike Loupedeck):
 - Actions query for LCD updates via `setFeedback()`
 
 ### Real-time LCD Updates
-- On each UDP state broadcast, update all active dial actions
-- Call `setFeedback({ value: "73%", indicator: 73 })` with current axis percentage
+- On each UDP state broadcast, iterate active dial actions and call `setFeedback()` with updated percentage and bar value
 - Only update dials whose axis value actually changed
+
+### Plugin Entry Point (plugin.ts)
+- Register all three actions as `SingletonAction` instances
+- Create `CoreConnection` instance
+- Call `await streamDeck.connect()` after registration
 
 ## Core Fixes (Rust)
 
 These fixes apply to the shared core before building the Stream Deck plugin:
 
 ### 1. Wire up rapid fire
-- In the server tick loop, iterate `rapid_active` buttons and call `rapid_tick()` based on each button's configured rate
-- Store rate per button in a HashMap alongside the active set
+- Change `rapid_active` from `HashSet<u8>` to `HashMap<u8, (u64, Instant)>` storing (rate_ms, last_fire_time)
+- In the server tick loop, iterate rapid_active and call `rapid_tick()` when elapsed time exceeds the configured rate
+- Update `rapid_start` to store the rate, `rapid_stop` to remove from map
 
 ### 2. Wire up disconnect decay
 - Call `axis_mgr.start_disconnect_decay()` when connected client count reaches 0
 - Currently logs "All clients disconnected" but doesn't trigger the decay
 
-### 3. Fix Loupedeck slider bugs
-- **Reset Axis position slider**: Fix `SetValues` parameters so it allows 0-100 at 1% increments (currently only 0/50/100)
-- **Dial sensitivity slider**: Fix default to 20% and allow 1% increments (currently defaults to 1%, jumps in ~20% steps)
-- Apply same fixes to ensure Stream Deck Property Inspector uses correct ranges
+### 3. Per-client broadcast registration
+- Parse optional `broadcastPort` from Hello message
+- Store `(client_id, SocketAddr)` in a broadcast targets list
+- On each broadcast tick, send to all registered targets
+- Remove target on client disconnect
+- Default to `127.0.0.1:19872` if no `broadcastPort` provided (backward compatible)
+
+### 4. Fix Loupedeck slider bugs
+- **Reset Axis position slider**: Fix `SetValues` parameters to allow 0-100 at 1% increments
+- **Dial sensitivity slider**: Fix default to 20% and allow 1% increments
+- Root cause: incorrect step/default values in `SetValues(min, max, step, default)` calls
+
+### 5. Update protocol for broadcastPort
+- Add optional `broadcast_port` field to `ClientMessage::Hello` in `protocol.rs`
+- Serde `#[serde(default)]` for backward compatibility
 
 ## Manifest
 
 ```json
 {
-  "SDKVersion": 3,
+  "SDKVersion": 2,
   "UUID": "com.apricadabra.streamdeck",
   "Name": "Apricadabra",
   "Version": "0.1.0.0",
@@ -198,7 +237,11 @@ These fixes apply to the shared core before building the Stream Deck plugin:
   "Author": "apricadabra",
   "Category": "Apricadabra",
   "Icon": "assets/plugin-icon",
-  "CodePath": "dist/plugin.js",
+  "CodePath": "bin/plugin.js",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
   "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
   "Software": { "MinimumVersion": "6.9" },
   "Actions": [
@@ -207,6 +250,7 @@ These fixes apply to the shared core before building the Stream Deck plugin:
       "Name": "vJoy Dial",
       "Icon": "assets/dial-icon",
       "Controllers": ["Encoder"],
+      "States": [{ "Image": "assets/dial-icon" }],
       "Encoder": {
         "layout": "$B1",
         "TriggerDescription": {
@@ -222,6 +266,7 @@ These fixes apply to the shared core before building the Stream Deck plugin:
       "Name": "vJoy Button",
       "Icon": "assets/button-icon",
       "Controllers": ["Keypad"],
+      "States": [{ "Image": "assets/button-icon" }],
       "PropertyInspectorPath": "property-inspector/button.html"
     },
     {
@@ -229,6 +274,7 @@ These fixes apply to the shared core before building the Stream Deck plugin:
       "Name": "vJoy Reset Axis",
       "Icon": "assets/reset-icon",
       "Controllers": ["Keypad", "Encoder"],
+      "States": [{ "Image": "assets/reset-icon" }],
       "Encoder": {
         "layout": "$A0",
         "TriggerDescription": {
@@ -241,13 +287,22 @@ These fixes apply to the shared core before building the Stream Deck plugin:
 }
 ```
 
+## Feature Differences: Stream Deck vs Loupedeck
+
+| Feature | Stream Deck Plugin | Loupedeck Plugin | Reason |
+|---------|-------------------|-----------------|--------|
+| Button modes | All 6 (Momentary, Toggle, Pulse, Double, Rapid, Long/Short) | 3 (Pulse, Toggle, Double) | Loupedeck SDK lacks key-up events on ActionEditorCommand |
+| Decay rate | User-configurable (1-99%) | Hardcoded 0.95 | Stream Deck Property Inspector supports conditional fields |
+| Detent steps | User-configurable (2-20) | Hardcoded 5 | Same reason |
+| Button range | 1-128 | 1-32 | Loupedeck list was shortened to avoid UI overflow |
+| LCD feedback | Real-time axis % + progress bar | Static display name | Stream Deck setFeedback() with built-in layouts |
+
 ## What Doesn't Change
 
-- Rust core (except the 3 fixes above)
 - Loupedeck plugin (except slider fixes)
-- UDP ports 19871/19872
 - Named pipe `\\.\pipe\apricadabra`
-- Protocol message format
+- UDP command port 19871
+- Protocol message format (additive change only: optional broadcastPort in Hello)
 - vJoy integration
 - Config file location and format
 
