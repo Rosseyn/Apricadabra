@@ -116,12 +116,23 @@ impl VJoyBackend {
     pub fn new() -> anyhow::Result<Self> {
         let lib = unsafe { Self::load_library()? };
 
-        // Check if vJoy is enabled
+        // Check if vJoy is enabled (retry a few times — can be briefly unavailable after restart)
         unsafe {
             let vjoy_enabled: libloading::Symbol<unsafe extern "C" fn() -> i32> =
                 lib.get(b"vJoyEnabled")
                     .map_err(|e| anyhow::anyhow!("Failed to find vJoyEnabled: {e}"))?;
-            if vjoy_enabled() == 0 {
+            let mut enabled = false;
+            for attempt in 0..3 {
+                if vjoy_enabled() != 0 {
+                    enabled = true;
+                    break;
+                }
+                if attempt < 2 {
+                    tracing::warn!("vJoy not ready, retrying in 1s...");
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            }
+            if !enabled {
                 anyhow::bail!("vJoy driver is not installed or not enabled");
             }
         }
@@ -189,7 +200,14 @@ impl VirtualJoystick for VJoyBackend {
                     return Ok(());
                 }
                 1 => {} // Free — proceed to acquire
-                2 => anyhow::bail!("vJoy device {} is owned by another process", device_id),
+                2 => {
+                    // Owned by another process (possibly a crashed instance) — force relinquish
+                    tracing::warn!("vJoy device {} owned by another process, forcing relinquish", device_id);
+                    let relinquish: libloading::Symbol<unsafe extern "C" fn(u32)> =
+                        self.lib.get(b"RelinquishVJD")?;
+                    relinquish(self.device_id);
+                    // Proceed to acquire
+                }
                 3 => anyhow::bail!("vJoy device {} does not exist", device_id),
                 _ => anyhow::bail!("vJoy device {} has unknown status {}", device_id, status),
             }
