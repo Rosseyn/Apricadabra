@@ -116,6 +116,12 @@ impl Server {
                     let mut axes = axis_mgr.lock().await;
                     let mut buttons = button_mgr.lock().await;
 
+                    // Process spring decay
+                    axes.tick_spring_decay();
+
+                    // Process disconnect decay if active
+                    axes.tick_disconnect_decay();
+
                     buttons.process_pending();
 
                     let axis_changes = axes.take_changed();

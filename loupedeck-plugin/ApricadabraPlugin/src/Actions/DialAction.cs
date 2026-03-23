@@ -122,10 +122,7 @@ namespace Loupedeck.ApricadabraPlugin
 
         protected override string GetAdjustmentDisplayName(ActionEditorActionParameters actionParameters)
         {
-            if (StateDisplay == null) return "---";
-            if (!actionParameters.TryGetString(AxisControl, out var axisStr)) return "---";
-            if (!int.TryParse(axisStr, out var axis)) return "---";
-            return StateDisplay.GetAxisDisplayString(axis);
+            return "";
         }
     }
 }

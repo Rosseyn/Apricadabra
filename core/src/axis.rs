@@ -1,12 +1,15 @@
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 const NUM_AXES: usize = 8;
 const CENTER: f32 = 0.5;
 const DISCONNECT_DECAY_FACTOR: f32 = 0.995; // ~30 seconds to center at 60Hz
+const SPRING_DEBOUNCE_MS: u128 = 500;
 
 pub struct AxisManager {
     values: [f32; NUM_AXES],
     spring_decay_factors: [Option<f32>; NUM_AXES],
+    spring_last_input: [Option<Instant>; NUM_AXES],
     disconnect_decaying: bool,
     changed: HashSet<u8>,
 }
@@ -16,6 +19,7 @@ impl AxisManager {
         Self {
             values: [CENTER; NUM_AXES],
             spring_decay_factors: [None; NUM_AXES],
+            spring_last_input: [None; NUM_AXES],
             disconnect_decaying: false,
             changed: HashSet::new(),
         }
@@ -45,6 +49,7 @@ impl AxisManager {
         if let Some(i) = self.idx(axis_id) {
             self.values[i] = (self.values[i] + diff as f32 * sensitivity).clamp(0.0, 1.0);
             self.spring_decay_factors[i] = Some(decay_rate);
+            self.spring_last_input[i] = Some(Instant::now());
             self.changed.insert(axis_id);
             self.disconnect_decaying = false;
         }
@@ -73,8 +78,16 @@ impl AxisManager {
     }
 
     pub fn tick_spring_decay(&mut self) {
+        let now = Instant::now();
         for i in 0..NUM_AXES {
             if let Some(factor) = self.spring_decay_factors[i] {
+                // Wait for debounce period after last input before decaying
+                if let Some(last) = self.spring_last_input[i] {
+                    if now.duration_since(last).as_millis() < SPRING_DEBOUNCE_MS {
+                        continue;
+                    }
+                }
+
                 let old = self.values[i];
                 self.values[i] = CENTER + (self.values[i] - CENTER) * factor;
                 if (self.values[i] - old).abs() > 0.0001 {
@@ -83,6 +96,7 @@ impl AxisManager {
                 if (self.values[i] - CENTER).abs() < 0.001 {
                     self.values[i] = CENTER;
                     self.spring_decay_factors[i] = None;
+                    self.spring_last_input[i] = None;
                 }
             }
         }

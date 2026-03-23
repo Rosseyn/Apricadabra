@@ -34,6 +34,7 @@ namespace Loupedeck.ApricadabraPlugin
             {
                 e.AddItem("pulse", "Pulse", "Brief press/release");
                 e.AddItem("toggle", "Toggle", "On/off on each press");
+                e.AddItem("double", "Double Press", "Two rapid pulses");
             }
             else if (e.ControlName == ButtonControl)
             {
