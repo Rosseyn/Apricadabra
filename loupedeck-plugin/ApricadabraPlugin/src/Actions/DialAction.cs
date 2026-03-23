@@ -3,25 +3,32 @@ using System.Text.Json.Nodes;
 
 namespace Loupedeck.ApricadabraPlugin
 {
-    public class AxisButtonAdjustment : ActionEditorAdjustment
+    public class DialAction : ActionEditorAdjustment
     {
         private CoreConnection Connection => ((ApricadabraPlugin)this.Plugin).Connection;
         private StateDisplay StateDisplay => ((ApricadabraPlugin)this.Plugin).State;
 
-        private const string AxisControl = "axis";
-        private const string InvertControl = "invert";
-        private const string SensitivityControl = "sensitivity";
-        private const string ButtonControl = "button";
+        private const string ModeControl = "dialMode";
+        private const string AxisControl = "dialAxis";
+        private const string InvertControl = "dialInvert";
+        private const string SensitivityControl = "dialSensitivity";
+        private const string DecayRateControl = "dialDecayRate";
+        private const string StepCountControl = "dialStepCount";
+        private const string ButtonControl = "dialButton";
 
-        public AxisButtonAdjustment()
-            : base(hasReset: true)
+        public DialAction()
+            : base(hasReset: false)
         {
-            this.DisplayName = "vJoy Axis + Button";
-            this.Description = "Dial controls axis, encoder press fires button";
+            this.DisplayName = "vJoy Dial";
+            this.Description = "Map a dial to a vJoy axis, optionally fire a button on encoder press";
             this.GroupName = "Apricadabra";
 
             this.ActionEditor.AddControlEx(
                 new ActionEditorListbox(name: AxisControl, labelText: "Axis")
+                    .SetRequired()
+            );
+            this.ActionEditor.AddControlEx(
+                new ActionEditorListbox(name: ModeControl, labelText: "Mode")
                     .SetRequired()
             );
             this.ActionEditor.AddControlEx(
@@ -33,8 +40,16 @@ namespace Loupedeck.ApricadabraPlugin
                     .SetFormatString("{0}%")
             );
             this.ActionEditor.AddControlEx(
-                new ActionEditorListbox(name: ButtonControl, labelText: "Button")
-                    .SetRequired()
+                new ActionEditorSlider(name: DecayRateControl, labelText: "Decay Rate (Spring)")
+                    .SetValues(0, 100, 1, 95)
+                    .SetFormatString("{0}%")
+            );
+            this.ActionEditor.AddControlEx(
+                new ActionEditorSlider(name: StepCountControl, labelText: "Steps (Detent)")
+                    .SetValues(2, 20, 1, 5)
+            );
+            this.ActionEditor.AddControlEx(
+                new ActionEditorListbox(name: ButtonControl, labelText: "Button (encoder press)")
             );
 
             this.ActionEditor.ListboxItemsRequested += OnListboxItemsRequested;
@@ -42,7 +57,13 @@ namespace Loupedeck.ApricadabraPlugin
 
         private void OnListboxItemsRequested(object sender, ActionEditorListboxItemsRequestedEventArgs e)
         {
-            if (e.ControlName == AxisControl)
+            if (e.ControlName == ModeControl)
+            {
+                e.AddItem("hold", "Hold", "Maintains position");
+                e.AddItem("spring", "Spring", "Returns to center");
+                e.AddItem("detent", "Detent", "Discrete steps");
+            }
+            else if (e.ControlName == AxisControl)
             {
                 e.AddItem("1", "X", null);
                 e.AddItem("2", "Y", null);
@@ -62,39 +83,60 @@ namespace Loupedeck.ApricadabraPlugin
 
         protected override bool ApplyAdjustment(ActionEditorActionParameters actionParameters, int diff)
         {
+            if (!actionParameters.TryGetString(ModeControl, out var mode)) return false;
             if (!actionParameters.TryGetString(AxisControl, out var axisStr)) return false;
             if (!int.TryParse(axisStr, out var axis)) return false;
 
             actionParameters.TryGetBoolean(InvertControl, out var invert);
-            actionParameters.TryGetString(SensitivityControl, out var sensStr);
-            var sensitivity = int.TryParse(sensStr, out var sensInt) ? sensInt / 1000f : 0.02f;
+            var adjustedDiff = invert ? -diff : diff;
 
             var msg = new JsonObject
             {
                 ["type"] = "axis",
                 ["axis"] = axis,
-                ["mode"] = "hold",
-                ["diff"] = invert ? -diff : diff,
-                ["sensitivity"] = sensitivity,
+                ["mode"] = mode,
+                ["diff"] = adjustedDiff,
             };
 
+            if (mode == "hold" || mode == "spring")
+            {
+                actionParameters.TryGetString(SensitivityControl, out var sensStr);
+                var sensitivity = int.TryParse(sensStr, out var sensInt) ? sensInt / 1000f : 0.02f;
+                msg["sensitivity"] = sensitivity;
+            }
+
+            if (mode == "spring")
+            {
+                actionParameters.TryGetString(DecayRateControl, out var decayStr);
+                var decay = int.TryParse(decayStr, out var decayInt) ? decayInt / 100f : 0.95f;
+                msg["decayRate"] = decay;
+            }
+
+            if (mode == "detent")
+            {
+                actionParameters.TryGetString(StepCountControl, out var stepsStr);
+                var steps = int.TryParse(stepsStr, out var stepsInt) ? stepsInt : 5;
+                msg["steps"] = steps;
+            }
+
             _ = Connection?.SendAsync(msg);
-            this.AdjustmentValueChanged();
+            // Intentionally not calling AdjustmentValueChanged to suppress OSD popup
             return true;
         }
 
         protected override bool RunCommand(ActionEditorActionParameters actionParameters)
         {
+            // Encoder press — fire button if configured
             if (!actionParameters.TryGetString(ButtonControl, out var btnStr)) return false;
             if (!int.TryParse(btnStr, out var button)) return false;
 
-            var downMsg = new JsonObject
+            var msg = new JsonObject
             {
                 ["type"] = "button",
                 ["button"] = button,
                 ["mode"] = "pulse",
             };
-            _ = Connection?.SendAsync(downMsg);
+            _ = Connection?.SendAsync(msg);
             return true;
         }
 

@@ -24,6 +24,7 @@ namespace Loupedeck.ApricadabraPlugin
             this.Connection.OnStateUpdate += msg =>
             {
                 this.State.UpdateFromState(msg);
+                PluginLog.Info("Connected to core, received state update");
                 this.OnPluginStatusChanged(Loupedeck.PluginStatus.Normal, "Connected", null, null);
             };
 

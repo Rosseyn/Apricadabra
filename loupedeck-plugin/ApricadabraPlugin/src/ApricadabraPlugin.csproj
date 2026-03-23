@@ -18,8 +18,9 @@
     <PluginDir Condition="$(OS) == 'Windows_NT'">$(LocalAppData)\Logi\LogiPluginService\Plugins\</PluginDir>
     <PluginDir Condition="$(OS) != 'Windows_NT'">~/Library/Application\ Support/Logi/LogiPluginService/Plugins/</PluginDir>
 
-    <BaseOutputPath>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\bin\'))</BaseOutputPath>
-    <OutputPath>$(BaseOutputPath)$(Configuration)\bin\</OutputPath>
+    <BaseOutputPath>C:\Users\unsab\ApricadabraPlugin\</BaseOutputPath>
+    <OutputPath>$(BaseOutputPath)bin\</OutputPath>
+    <DeployDir>C:\Users\unsab\ApricadabraPlugin\</DeployDir>
 
     <PluginShortName>Apricadabra</PluginShortName>
   </PropertyGroup>
@@ -40,7 +41,7 @@
   </Target>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Condition="$(OS) == 'Windows_NT'" Command="echo $(BaseOutputPath)$(Configuration)\ &gt; &quot;$(PluginDir)$(ProjectName).link&quot;" />
+    <Exec Condition="$(OS) == 'Windows_NT'" Command="echo $(DeployDir) &gt; &quot;$(PluginDir)$(ProjectName).link&quot;" />
     <Exec Condition="$(OS) != 'Windows_NT'" Command="echo $(BaseOutputPath)$(Configuration)\ &gt; $(PluginDir)$(ProjectName).link" />
     <Message Text="🔨 Created plugin link at: $(PluginDir)$(ProjectName).link" Importance="High" />
 
