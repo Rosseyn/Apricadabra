@@ -14,7 +14,7 @@ pub struct ButtonManager {
     states: [bool; MAX_BUTTONS],
     changed: HashSet<u8>,
     pending: Vec<PendingAction>,
-    rapid_active: HashSet<u8>,
+    rapid_active: HashMap<u8, (u64, Instant)>,
     longshort_start: HashMap<u8, Instant>,
 }
 
@@ -29,7 +29,7 @@ impl ButtonManager {
             states: [false; MAX_BUTTONS],
             changed: HashSet::new(),
             pending: Vec::new(),
-            rapid_active: HashSet::new(),
+            rapid_active: HashMap::new(),
             longshort_start: HashMap::new(),
         }
     }
@@ -92,9 +92,9 @@ impl ButtonManager {
         });
     }
 
-    pub fn rapid_start(&mut self, button: u8, _rate_ms: u64) {
+    pub fn rapid_start(&mut self, button: u8, rate_ms: u64) {
         self.set(button, true);
-        self.rapid_active.insert(button);
+        self.rapid_active.insert(button, (rate_ms, Instant::now()));
     }
 
     pub fn rapid_stop(&mut self, button: u8) {
@@ -102,11 +102,21 @@ impl ButtonManager {
         self.set(button, false);
     }
 
-    pub fn rapid_tick(&mut self, button: u8) {
-        if self.rapid_active.contains(&button) {
+    pub fn process_rapid_ticks(&mut self) {
+        let now = Instant::now();
+        let mut to_toggle = Vec::new();
+        for (&button, (rate_ms, last_fire)) in self.rapid_active.iter() {
+            if now.duration_since(*last_fire).as_millis() as u64 >= *rate_ms {
+                to_toggle.push(button);
+            }
+        }
+        for button in to_toggle {
             if let Some(i) = self.idx(button) {
                 self.states[i] = !self.states[i];
                 self.changed.insert(button);
+            }
+            if let Some(entry) = self.rapid_active.get_mut(&button) {
+                entry.1 = now;
             }
         }
     }

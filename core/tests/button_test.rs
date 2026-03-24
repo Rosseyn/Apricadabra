@@ -42,6 +42,23 @@ async fn test_double_press() {
 }
 
 #[test]
+fn test_rapid_fire_with_rate() {
+    let mut mgr = ButtonManager::new();
+    mgr.rapid_start(1, 100); // 100ms rate
+
+    // Initially button is down
+    assert!(mgr.get(1));
+
+    // Simulate time passing
+    std::thread::sleep(std::time::Duration::from_millis(110));
+    mgr.process_rapid_ticks();
+    let changed = mgr.take_changed();
+    // Button should have toggled
+    assert!(changed.contains_key(&1));
+    assert!(!mgr.get(1)); // toggled to off
+}
+
+#[test]
 fn test_rapid_fire_start_stop() {
     let mut mgr = ButtonManager::new();
     mgr.rapid_start(7, 100);

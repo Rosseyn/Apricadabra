@@ -127,6 +127,7 @@ impl Server {
                     axes.tick_disconnect_decay();
 
                     buttons.process_pending();
+                    buttons.process_rapid_ticks();
 
                     let axis_changes = axes.take_changed();
                     let button_changes = buttons.take_changed();
