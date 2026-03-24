@@ -4,7 +4,7 @@ use apricadabra_core::protocol::*;
 fn test_parse_hello() {
     let json = r#"{"type":"hello","version":1,"name":"loupedeck"}"#;
     let msg: ClientMessage = serde_json::from_str(json).unwrap();
-    assert!(matches!(msg, ClientMessage::Hello { version: 1, name } if name == "loupedeck"));
+    assert!(matches!(msg, ClientMessage::Hello { version: 1, ref name, .. } if name == "loupedeck"));
 }
 
 #[test]
@@ -86,6 +86,34 @@ fn test_parse_reset() {
             assert!((position - 0.5).abs() < f32::EPSILON);
         }
         _ => panic!("Expected Reset"),
+    }
+}
+
+#[test]
+fn test_hello_with_broadcast_port() {
+    let json = r#"{"type":"hello","version":1,"name":"streamdeck","broadcastPort":19873}"#;
+    let msg: ClientMessage = serde_json::from_str(json).unwrap();
+    match msg {
+        ClientMessage::Hello { version, name, broadcast_port } => {
+            assert_eq!(version, 1);
+            assert_eq!(name, "streamdeck");
+            assert_eq!(broadcast_port, Some(19873));
+        }
+        _ => panic!("Expected Hello"),
+    }
+}
+
+#[test]
+fn test_hello_without_broadcast_port() {
+    let json = r#"{"type":"hello","version":1,"name":"loupedeck"}"#;
+    let msg: ClientMessage = serde_json::from_str(json).unwrap();
+    match msg {
+        ClientMessage::Hello { version, name, broadcast_port } => {
+            assert_eq!(version, 1);
+            assert_eq!(name, "loupedeck");
+            assert_eq!(broadcast_port, None);
+        }
+        _ => panic!("Expected Hello"),
     }
 }
 

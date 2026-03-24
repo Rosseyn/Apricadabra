@@ -8,6 +8,8 @@ pub enum ClientMessage {
     Hello {
         version: u32,
         name: String,
+        #[serde(default, rename = "broadcastPort")]
+        broadcast_port: Option<u16>,
     },
     Axis {
         axis: u8,

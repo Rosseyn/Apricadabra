@@ -284,7 +284,7 @@ impl Server {
         };
 
         match hello {
-            ClientMessage::Hello { version, name } => {
+            ClientMessage::Hello { version, name, broadcast_port: _ } => {
                 info!("Client {client_id} hello: {name} v{version}");
                 if version != PROTOCOL_VERSION {
                     let err = ServerMessage::Error {
