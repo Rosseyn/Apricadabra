@@ -1,0 +1,58 @@
+{
+  "SDKVersion": 2,
+  "UUID": "com.apricadabra.streamdeck",
+  "Name": "Apricadabra",
+  "Version": "0.1.0.0",
+  "Description": "Control vJoy virtual joystick axes and buttons",
+  "Author": "apricadabra",
+  "Category": "Apricadabra",
+  "CategoryIcon": "imgs/plugin-icon",
+  "Icon": "imgs/plugin-icon",
+  "CodePath": "bin/plugin.js",
+  "Nodejs": {
+    "Version": "20",
+    "Debug": "enabled"
+  },
+  "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
+  "Software": { "MinimumVersion": "6.9" },
+  "Actions": [
+    {
+      "UUID": "com.apricadabra.dial",
+      "Name": "vJoy Dial",
+      "Icon": "imgs/dial-icon",
+      "Controllers": ["Encoder"],
+      "States": [{ "Image": "imgs/dial-icon" }],
+      "Encoder": {
+        "layout": "$B1",
+        "TriggerDescription": {
+          "Rotate": "Adjust axis",
+          "Push": "Fire button",
+          "Touch": "Settings"
+        }
+      },
+      "PropertyInspectorPath": "pi/dial.html"
+    },
+    {
+      "UUID": "com.apricadabra.button",
+      "Name": "vJoy Button",
+      "Icon": "imgs/button-icon",
+      "Controllers": ["Keypad"],
+      "States": [{ "Image": "imgs/button-icon" }],
+      "PropertyInspectorPath": "pi/button.html"
+    },
+    {
+      "UUID": "com.apricadabra.reset",
+      "Name": "vJoy Reset Axis",
+      "Icon": "imgs/reset-icon",
+      "Controllers": ["Keypad", "Encoder"],
+      "States": [{ "Image": "imgs/reset-icon" }],
+      "Encoder": {
+        "layout": "$A0",
+        "TriggerDescription": {
+          "Push": "Reset axis"
+        }
+      },
+      "PropertyInspectorPath": "pi/reset-axis.html"
+    }
+  ]
+}

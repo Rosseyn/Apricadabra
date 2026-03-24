@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>vJoy Reset Axis</title>
+    <link rel="stylesheet" href="https://sdpi-components.dev/css/sdpi.css" />
+</head>
+<body>
+    <div class="sdpi-wrapper">
+        <div class="sdpi-item">
+            <div class="sdpi-item-label">Axis</div>
+            <select class="sdpi-item-value" id="axis">
+                <option value="">-- Select --</option>
+                <option value="1">X</option>
+                <option value="2">Y</option>
+                <option value="3">Z</option>
+                <option value="4">Rx</option>
+                <option value="5">Ry</option>
+                <option value="6">Rz</option>
+                <option value="7">Slider 1</option>
+                <option value="8">Slider 2</option>
+            </select>
+        </div>
+
+        <div class="sdpi-item">
+            <div class="sdpi-item-label">Position</div>
+            <div class="sdpi-item-value">
+                <input type="range" id="position" min="0" max="100" value="50" />
+                <span id="positionLabel">50%</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let websocket = null;
+        let uuid = null;
+
+        function connectElgatoStreamDeckSocket(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
+            uuid = inPropertyInspectorUUID;
+            const actionInfo = JSON.parse(inActionInfo);
+
+            websocket = new WebSocket("ws://127.0.0.1:" + inPort);
+            websocket.onopen = function () {
+                websocket.send(JSON.stringify({ event: inRegisterEvent, uuid }));
+                loadSettings(actionInfo.payload.settings || {});
+            };
+            websocket.onmessage = function (evt) {
+                const data = JSON.parse(evt.data);
+                if (data.event === "didReceiveSettings") {
+                    loadSettings(data.payload.settings || {});
+                }
+            };
+        }
+
+        function loadSettings(settings) {
+            document.getElementById("axis").value = settings.axis || "";
+            document.getElementById("position").value = settings.position ?? 50;
+            document.getElementById("positionLabel").textContent = (settings.position ?? 50) + "%";
+        }
+
+        function saveSettings() {
+            const settings = {
+                axis: document.getElementById("axis").value,
+                position: Number(document.getElementById("position").value),
+            };
+            websocket && websocket.send(JSON.stringify({
+                event: "setSettings",
+                context: uuid,
+                payload: settings,
+            }));
+        }
+
+        document.querySelectorAll("select, input").forEach(el => {
+            el.addEventListener("change", saveSettings);
+            el.addEventListener("input", () => {
+                if (el.type === "range") {
+                    document.getElementById("positionLabel").textContent = el.value + "%";
+                }
+                saveSettings();
+            });
+        });
+    </script>
+</body>
+</html>
