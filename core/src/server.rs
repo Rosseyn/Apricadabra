@@ -4,6 +4,7 @@ use crate::config::Config;
 use crate::protocol::*;
 use crate::vjoy::{Axis, VirtualJoystick};
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
@@ -50,14 +51,16 @@ impl Server {
         // UDP sockets
         let cmd_socket = UdpSocket::bind(format!("127.0.0.1:{UDP_COMMAND_PORT}")).await?;
         let broadcast_socket = UdpSocket::bind("127.0.0.1:0").await?;
-        let broadcast_dest: std::net::SocketAddr = format!("127.0.0.1:{UDP_BROADCAST_PORT}").parse()?;
-        info!("UDP command port: {UDP_COMMAND_PORT}, broadcast target: {broadcast_dest}");
+        info!("UDP command port: {UDP_COMMAND_PORT}");
+
+        let broadcast_targets: Arc<Mutex<HashMap<u64, std::net::SocketAddr>>> = Arc::new(Mutex::new(HashMap::new()));
 
         // Pipe accept loop (handshake + heartbeat only)
         let accept_axis = axis_mgr.clone();
         let accept_button = button_mgr.clone();
         let accept_clients = connected_clients.clone();
         let accept_disconnect_tx = disconnect_tx.clone();
+        let accept_broadcast_targets = broadcast_targets.clone();
         let pipe_name = self.config.pipe_name.clone();
 
         tokio::spawn(async move {
@@ -89,9 +92,10 @@ impl Server {
                 let button = accept_button.clone();
                 let clients = accept_clients.clone();
                 let disc_tx = accept_disconnect_tx.clone();
+                let bt = accept_broadcast_targets.clone();
 
                 tokio::spawn(async move {
-                    Self::handle_client(client_id, pipe, axis, button).await;
+                    Self::handle_client(client_id, pipe, axis, button, bt).await;
                     clients.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                     let _ = disc_tx.send(client_id).await;
                     info!("Client {client_id} disconnected");
@@ -156,7 +160,10 @@ impl Server {
                                 buttons: buttons.get_all(),
                             };
                             if let Ok(json) = serde_json::to_string(&msg) {
-                                let _ = broadcast_socket.send_to(json.as_bytes(), broadcast_dest).await;
+                                let targets = broadcast_targets.lock().await;
+                                for (_id, addr) in targets.iter() {
+                                    let _ = broadcast_socket.send_to(json.as_bytes(), addr).await;
+                                }
                             }
                         }
                     }
@@ -182,6 +189,7 @@ impl Server {
 
                 Some(client_id) = disconnect_rx.recv() => {
                     info!("Client {client_id} cleanup");
+                    broadcast_targets.lock().await.remove(&client_id);
                     if connected_clients.load(std::sync::atomic::Ordering::Relaxed) == 0 {
                         info!("All clients disconnected");
                     }
@@ -266,6 +274,7 @@ impl Server {
         pipe: NamedPipeServer,
         axis_mgr: Arc<Mutex<AxisManager>>,
         button_mgr: Arc<Mutex<ButtonManager>>,
+        broadcast_targets: Arc<Mutex<HashMap<u64, std::net::SocketAddr>>>,
     ) {
         let (reader, mut writer) = tokio::io::split(pipe);
         let mut reader = BufReader::new(reader);
@@ -284,7 +293,7 @@ impl Server {
         };
 
         match hello {
-            ClientMessage::Hello { version, name, broadcast_port: _ } => {
+            ClientMessage::Hello { version, name, broadcast_port } => {
                 info!("Client {client_id} hello: {name} v{version}");
                 if version != PROTOCOL_VERSION {
                     let err = ServerMessage::Error {
@@ -301,6 +310,11 @@ impl Server {
                 if Self::send_message(&mut writer, &welcome).await.is_err() {
                     return;
                 }
+
+                let port = broadcast_port.unwrap_or(UDP_BROADCAST_PORT);
+                let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+                broadcast_targets.lock().await.insert(client_id, addr);
+                info!("Client {client_id} registered broadcast target: {addr}");
             }
             _ => return,
         }
