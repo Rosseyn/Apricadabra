@@ -49,12 +49,8 @@ namespace Loupedeck.ApricadabraPlugin
             if (!actionParameters.TryGetString(AxisControl, out var axisStr)) return false;
             if (!int.TryParse(axisStr, out var axis)) return false;
 
-            // Debug: log raw values from all getter methods
-            actionParameters.TryGetString(PositionControl, out var posStr);
             actionParameters.TryGetInt32(PositionControl, out var posInt);
-            PluginLog.Info($"Position raw: string='{posStr}' int={posInt}");
-
-            var position = posInt > 0 ? posInt / 100f : (int.TryParse(posStr, out var parsed) ? parsed / 100f : 0.5f);
+            var position = posInt / 100f;
 
             var msg = new JsonObject
             {
@@ -62,7 +58,6 @@ namespace Loupedeck.ApricadabraPlugin
                 ["axis"] = axis,
                 ["position"] = position,
             };
-            PluginLog.Info($"Sending reset: axis={axis} position={position}");
             _ = Connection?.SendAsync(msg);
             return true;
         }
