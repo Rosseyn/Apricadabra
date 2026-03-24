@@ -192,7 +192,8 @@ impl Server {
                     info!("Client {client_id} cleanup");
                     broadcast_targets.lock().await.remove(&client_id);
                     if connected_clients.load(std::sync::atomic::Ordering::Relaxed) == 0 {
-                        info!("All clients disconnected");
+                        info!("All clients disconnected, starting decay");
+                        axis_mgr.lock().await.start_disconnect_decay();
                     }
                 }
 
