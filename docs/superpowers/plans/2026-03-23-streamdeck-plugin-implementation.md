@@ -71,7 +71,20 @@ In `core/src/protocol.rs`, modify the `Hello` variant (lines 8-11):
     },
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Fix Hello match arms in server.rs**
+
+In `core/src/server.rs`, update the `ClientMessage::Hello { .. }` match arm in `handle_client` (around line 287) to destructure the new field:
+
+```rust
+ClientMessage::Hello { version, name, broadcast_port } => {
+```
+
+Also update the catch-all in `process_command` to use `..`:
+```rust
+ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck => {}
+```
+
+- [ ] **Step 5: Run tests to verify they pass**
 
 Run: `cd core && CARGO_INCREMENTAL=0 cargo test --test protocol_test 2>&1 | tail -5`
 
@@ -284,16 +297,7 @@ Some(client_id) = disconnect_rx.recv() => {
 }
 ```
 
-- [ ] **Step 2: Re-enable disconnect decay in tick loop**
-
-Verify that `axes.tick_disconnect_decay()` is called in the tick loop. It was removed earlier — add it back after `axes.tick_spring_decay()`:
-
-```rust
-axes.tick_spring_decay();
-axes.tick_disconnect_decay();
-```
-
-- [ ] **Step 3: Run all tests**
+- [ ] **Step 2: Run all tests**
 
 Run: `cd core && CARGO_INCREMENTAL=0 cargo test 2>&1 | tail -10`
 
@@ -314,29 +318,15 @@ git commit -m "fix(core): wire up disconnect decay when all clients disconnect"
 - Modify: `loupedeck-plugin/ApricadabraPlugin/src/Actions/DialAction.cs`
 - Modify: `loupedeck-plugin/ApricadabraPlugin/src/Actions/ResetAxisCommand.cs`
 
-- [ ] **Step 1: Fix DialAction sensitivity slider**
+- [ ] **Step 1: Verify slider values are correct**
 
-In `DialAction.cs`, find the sensitivity slider `SetValues` call. It should be:
-```csharp
-new ActionEditorSlider(name: SensitivityControl, labelText: "Sensitivity")
-    .SetValues(1, 100, 1, 20)
-    .SetFormatString("{0}%")
-```
+The sliders already have correct `SetValues` parameters:
+- `DialAction.cs`: `SetValues(1, 100, 1, 20)` — correct
+- `ResetAxisCommand.cs`: `SetValues(0, 100, 1, 50)` — correct
 
-Verify the parameters are `(min=1, max=100, step=1, default=20)`. If the step or default are wrong, fix them.
+If the user is still seeing incorrect behavior, the issue may be in how the Loupedeck SDK interprets the values at runtime. Verify by testing after deployment.
 
-- [ ] **Step 2: Fix ResetAxisCommand position slider**
-
-In `ResetAxisCommand.cs`, find the position slider `SetValues` call. It should be:
-```csharp
-new ActionEditorSlider(name: PositionControl, labelText: "Reset Position")
-    .SetValues(0, 100, 1, 50)
-    .SetFormatString("{0}%")
-```
-
-Verify the parameters are `(min=0, max=100, step=1, default=50)`.
-
-- [ ] **Step 3: Clean up ResetAxisCommand debug logging**
+- [ ] **Step 2: Clean up ResetAxisCommand debug logging**
 
 Remove the debug logging lines in `RunCommand` that log raw position values. Simplify to:
 
@@ -478,6 +468,7 @@ export class CoreConnection {
     private udpSender: dgram.Socket | null = null;
     private udpListener: dgram.Socket | null = null;
     private connected = false;
+    private reconnecting = false;
     private buffer = "";
 
     public onStateUpdate: StateCallback | null = null;
@@ -586,10 +577,15 @@ export class CoreConnection {
     }
 
     private handleDisconnect(): void {
+        if (this.reconnecting) return; // Prevent multiple reconnect loops
+        this.reconnecting = true;
         this.connected = false;
         this.onStatusChange?.("Disconnected");
         this.cleanup();
-        setTimeout(() => this.connect(), 1000);
+        setTimeout(() => {
+            this.reconnecting = false;
+            this.connect();
+        }, 1000);
     }
 
     private disconnect(): void {
@@ -608,9 +604,16 @@ export class CoreConnection {
 
     private tryLaunchCore(): void {
         const appData = process.env.APPDATA || "";
-        const corePath = join(appData, "Apricadabra", CORE_EXE_NAME);
-        if (existsSync(corePath)) {
-            spawn(corePath, [], { detached: true, stdio: "ignore" }).unref();
+        const candidates = [
+            join(appData, "Apricadabra", CORE_EXE_NAME),
+            join(__dirname, CORE_EXE_NAME),
+            join(__dirname, "..", CORE_EXE_NAME),
+        ];
+        for (const corePath of candidates) {
+            if (existsSync(corePath)) {
+                spawn(corePath, [], { detached: true, stdio: "ignore" }).unref();
+                return;
+            }
         }
     }
 
@@ -709,9 +712,14 @@ git commit -m "feat(streamdeck): add StateDisplay for axis/button state tracking
 
 ```typescript
 // actions/dial-action.ts
-import streamDeck, { action, SingletonAction, DialRotateEvent, DialDownEvent, WillAppearEvent, DidReceiveSettingsEvent } from "@elgato/streamdeck";
+import streamDeck, { SingletonAction, DialRotateEvent, DialDownEvent, WillAppearEvent, DidReceiveSettingsEvent, Action } from "@elgato/streamdeck";
 import { CoreConnection } from "../core-connection";
 import { StateDisplay } from "../state-display";
+
+const AXIS_NAMES: Record<string, string> = {
+    "1": "X", "2": "Y", "3": "Z", "4": "Rx",
+    "5": "Ry", "6": "Rz", "7": "Slider 1", "8": "Slider 2",
+};
 
 interface DialSettings {
     axis: string;
@@ -723,7 +731,7 @@ interface DialSettings {
     encoderButton: string;
 }
 
-@action({ UUID: "com.apricadabra.dial" })
+// No @action decorator — registered manually via streamDeck.actions.registerAction()
 export class DialAction extends SingletonAction<DialSettings> {
     private connection: CoreConnection;
     private stateDisplay: StateDisplay;
@@ -783,19 +791,24 @@ export class DialAction extends SingletonAction<DialSettings> {
         this.updateFeedback(ev.action, ev.payload.settings);
     }
 
-    updateFeedback(action: any, settings: DialSettings): void {
+    updateFeedback(action: Action<DialSettings>, settings: DialSettings): void {
         if (!settings.axis) return;
         const axisId = Number(settings.axis);
         const percent = this.stateDisplay.getAxisPercent(axisId);
+        const name = AXIS_NAMES[settings.axis] || `Axis ${settings.axis}`;
         action.setFeedback({
+            title: name,
             value: `${percent}%`,
             indicator: percent,
         });
     }
 
-    updateAllFeedback(): void {
-        // Called from plugin.ts when state updates arrive
-        // Iterate all visible actions and update their feedback
+    async updateAllFeedback(): Promise<void> {
+        // Iterate all visible dial action instances and update LCD
+        for (const action of this.actions) {
+            const settings = await action.getSettings();
+            this.updateFeedback(action, settings);
+        }
     }
 }
 ```
@@ -824,7 +837,7 @@ git commit -m "feat(streamdeck): add DialAction with rotation, encoder press, an
 
 ```typescript
 // actions/button-action.ts
-import { action, SingletonAction, KeyDownEvent, KeyUpEvent } from "@elgato/streamdeck";
+import { SingletonAction, KeyDownEvent, KeyUpEvent } from "@elgato/streamdeck";
 import { CoreConnection } from "../core-connection";
 
 interface ButtonSettings {
@@ -837,7 +850,6 @@ interface ButtonSettings {
     threshold: number;
 }
 
-@action({ UUID: "com.apricadabra.button" })
 export class ButtonAction extends SingletonAction<ButtonSettings> {
     private connection: CoreConnection;
 
@@ -931,7 +943,7 @@ git commit -m "feat(streamdeck): add ButtonAction with all 6 modes including key
 
 ```typescript
 // actions/reset-axis-action.ts
-import { action, SingletonAction, KeyDownEvent, DialDownEvent } from "@elgato/streamdeck";
+import { SingletonAction, KeyDownEvent, DialDownEvent } from "@elgato/streamdeck";
 import { CoreConnection } from "../core-connection";
 
 interface ResetSettings {
@@ -939,7 +951,6 @@ interface ResetSettings {
     position: number;
 }
 
-@action({ UUID: "com.apricadabra.reset" })
 export class ResetAxisAction extends SingletonAction<ResetSettings> {
     private connection: CoreConnection;
 
@@ -1003,9 +1014,7 @@ const dialAction = new DialAction(connection, stateDisplay);
 
 connection.onStateUpdate = (axes, buttons) => {
     stateDisplay.update(axes, buttons);
-    // Update all active dial LCD feedback
-    // Note: action context iteration depends on SDK version
-    // May need to track active actions manually
+    dialAction.updateAllFeedback();
 };
 
 connection.onStatusChange = (status) => {
