@@ -227,7 +227,9 @@ impl VirtualJoystick for VJoyBackend {
         unsafe {
             let set_axis: libloading::Symbol<unsafe extern "C" fn(i32, u32, u32) -> i32> =
                 self.lib.get(b"SetAxis")?;
-            set_axis(vjoy_value, self.device_id, usage);
+            if set_axis(vjoy_value, self.device_id, usage) == 0 {
+                anyhow::bail!("SetAxis failed for axis {:?} on device {}", axis, self.device_id);
+            }
         }
         Ok(())
     }
@@ -236,7 +238,9 @@ impl VirtualJoystick for VJoyBackend {
         unsafe {
             let set_btn: libloading::Symbol<unsafe extern "C" fn(i32, u32, u8) -> i32> =
                 self.lib.get(b"SetBtn")?;
-            set_btn(pressed as i32, self.device_id, button);
+            if set_btn(pressed as i32, self.device_id, button) == 0 {
+                anyhow::bail!("SetBtn failed for button {} on device {}", button, self.device_id);
+            }
         }
         Ok(())
     }

@@ -134,13 +134,32 @@ impl Server {
 
                     if !axis_changes.is_empty() || !button_changes.is_empty() {
                         let mut joy = joystick.lock().await;
+                        let mut vjoy_failed = false;
                         for (&id, &value) in &axis_changes {
                             if let Some(axis) = Axis::from_id(id) {
-                                let _ = joy.set_axis(axis, value);
+                                if let Err(e) = joy.set_axis(axis, value) {
+                                    if !vjoy_failed {
+                                        tracing::error!("vJoy write failed: {e}");
+                                        vjoy_failed = true;
+                                    }
+                                }
                             }
                         }
                         for (&id, &pressed) in &button_changes {
-                            let _ = joy.set_button(id, pressed);
+                            if let Err(e) = joy.set_button(id, pressed) {
+                                if !vjoy_failed {
+                                    tracing::error!("vJoy write failed: {e}");
+                                    vjoy_failed = true;
+                                }
+                            }
+                        }
+                        if vjoy_failed {
+                            tracing::warn!("Attempting vJoy re-acquisition...");
+                            if let Err(e) = joy.acquire(self.config.vjoy_device_id) {
+                                tracing::error!("vJoy re-acquisition failed: {e}");
+                            } else {
+                                tracing::info!("vJoy re-acquired successfully");
+                            }
                         }
 
                         last_change = Instant::now();
