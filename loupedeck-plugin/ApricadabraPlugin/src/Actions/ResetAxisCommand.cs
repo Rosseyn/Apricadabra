@@ -1,11 +1,11 @@
 using System;
-using System.Text.Json.Nodes;
+using Apricadabra.Client;
 
 namespace Loupedeck.ApricadabraPlugin
 {
     public class ResetAxisCommand : ActionEditorCommand
     {
-        private CoreConnection Connection => ((ApricadabraPlugin)this.Plugin).Connection;
+        private ApricadabraClient Connection => ((ApricadabraPlugin)this.Plugin).Connection;
 
         private const string AxisControl = "rstAxis";
         private const string PositionControl = "rstPosition";
@@ -52,13 +52,7 @@ namespace Loupedeck.ApricadabraPlugin
             actionParameters.TryGetInt32(PositionControl, out var posInt);
             var position = posInt / 100f;
 
-            var msg = new JsonObject
-            {
-                ["type"] = "reset",
-                ["axis"] = axis,
-                ["position"] = position,
-            };
-            _ = Connection?.SendAsync(msg);
+            Connection?.SendReset(axis, position);
             return true;
         }
     }

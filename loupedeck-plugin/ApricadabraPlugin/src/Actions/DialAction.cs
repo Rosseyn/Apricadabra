@@ -1,11 +1,11 @@
 using System;
-using System.Text.Json.Nodes;
+using Apricadabra.Client;
 
 namespace Loupedeck.ApricadabraPlugin
 {
     public class DialAction : ActionEditorAdjustment
     {
-        private CoreConnection Connection => ((ApricadabraPlugin)this.Plugin).Connection;
+        private ApricadabraClient Connection => ((ApricadabraPlugin)this.Plugin).Connection;
         private StateDisplay StateDisplay => ((ApricadabraPlugin)this.Plugin).State;
 
         private const string AxisControl = "dialAxis";
@@ -70,11 +70,18 @@ namespace Loupedeck.ApricadabraPlugin
             }
         }
 
+        private static AxisMode ParseAxisMode(string mode) => mode switch
+        {
+            "spring" => AxisMode.Spring,
+            "detent" => AxisMode.Detent,
+            _ => AxisMode.Hold
+        };
+
         protected override bool ApplyAdjustment(ActionEditorActionParameters actionParameters, int diff)
         {
             if (!actionParameters.TryGetString(AxisControl, out var axisStr)) return false;
             if (!int.TryParse(axisStr, out var axis)) return false;
-            if (!actionParameters.TryGetString(ModeControl, out var mode)) return false;
+            if (!actionParameters.TryGetString(ModeControl, out var modeStr)) return false;
 
             actionParameters.TryGetBoolean(InvertControl, out var invert);
             var adjustedDiff = invert ? -diff : diff;
@@ -82,26 +89,8 @@ namespace Loupedeck.ApricadabraPlugin
             actionParameters.TryGetString(SensitivityControl, out var sensStr);
             var sensitivity = int.TryParse(sensStr, out var sensInt) ? sensInt / 1000f : 0.02f;
 
-            var msg = new JsonObject
-            {
-                ["type"] = "axis",
-                ["axis"] = axis,
-                ["mode"] = mode,
-                ["diff"] = adjustedDiff,
-                ["sensitivity"] = sensitivity,
-            };
-
-            if (mode == "spring")
-            {
-                msg["decayRate"] = 0.95;
-            }
-
-            if (mode == "detent")
-            {
-                msg["steps"] = 5;
-            }
-
-            _ = Connection?.SendAsync(msg);
+            var axisMode = ParseAxisMode(modeStr);
+            Connection?.SendAxis(axis, axisMode, adjustedDiff, sensitivity);
             return true;
         }
 
@@ -110,13 +99,7 @@ namespace Loupedeck.ApricadabraPlugin
             if (!actionParameters.TryGetString(ButtonControl, out var btnStr)) return true;
             if (!int.TryParse(btnStr, out var button)) return true;
 
-            var msg = new JsonObject
-            {
-                ["type"] = "button",
-                ["button"] = button,
-                ["mode"] = "pulse",
-            };
-            _ = Connection?.SendAsync(msg);
+            Connection?.SendButton(button, ButtonMode.Pulse);
             return true;
         }
 

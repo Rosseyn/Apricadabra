@@ -1,11 +1,11 @@
 using System;
-using System.Text.Json.Nodes;
+using Apricadabra.Client;
 
 namespace Loupedeck.ApricadabraPlugin
 {
     public class ButtonCommand : ActionEditorCommand
     {
-        private CoreConnection Connection => ((ApricadabraPlugin)this.Plugin).Connection;
+        private ApricadabraClient Connection => ((ApricadabraPlugin)this.Plugin).Connection;
 
         private const string ButtonControl = "btnId";
         private const string ModeControl = "btnMode";
@@ -43,24 +43,23 @@ namespace Loupedeck.ApricadabraPlugin
             }
         }
 
+        private static (ButtonMode mode, ButtonState? state) ParseButtonMode(string mode) => mode switch
+        {
+            "toggle" => (ButtonMode.Toggle, ButtonState.Down),
+            "double" => (ButtonMode.Double, null),
+            _ => (ButtonMode.Pulse, null)
+        };
+
         protected override bool RunCommand(ActionEditorActionParameters actionParameters)
         {
             if (!actionParameters.TryGetString(ButtonControl, out var btnStr)) return false;
             if (!int.TryParse(btnStr, out var button)) return false;
-            if (!actionParameters.TryGetString(ModeControl, out var mode)) return false;
+            if (!actionParameters.TryGetString(ModeControl, out var modeStr)) return false;
 
-            var msg = new JsonObject
-            {
-                ["type"] = "button",
-                ["button"] = button,
-                ["mode"] = mode,
-            };
+            var (buttonMode, buttonState) = ParseButtonMode(modeStr);
 
-            if (mode == "toggle")
-                msg["state"] = "down";
-
-            PluginLog.Info($"Sending button: btn={button} mode={mode}");
-            _ = Connection?.SendAsync(msg);
+            PluginLog.Info($"Sending button: btn={button} mode={modeStr}");
+            Connection?.SendButton(button, buttonMode, buttonState);
             return true;
         }
     }
