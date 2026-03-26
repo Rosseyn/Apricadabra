@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Concurrent;
-using System.Text.Json.Nodes;
+using System.Collections.Generic;
 
 namespace Loupedeck.ApricadabraPlugin
 {
@@ -26,31 +26,19 @@ namespace Loupedeck.ApricadabraPlugin
             return $"{(int)(value * 100)}%";
         }
 
-        public void UpdateFromState(JsonObject msg)
+        public void UpdateFromState(Dictionary<int, float> axes, Dictionary<int, bool> buttons)
         {
             ConnectionStatus = null;
             ErrorMessage = null;
 
-            if (msg["axes"] is JsonObject axes)
+            foreach (var kvp in axes)
             {
-                foreach (var kvp in axes)
-                {
-                    if (int.TryParse(kvp.Key, out var id) && kvp.Value != null)
-                    {
-                        _axes[id] = kvp.Value.GetValue<float>();
-                    }
-                }
+                _axes[kvp.Key] = kvp.Value;
             }
 
-            if (msg["buttons"] is JsonObject buttons)
+            foreach (var kvp in buttons)
             {
-                foreach (var kvp in buttons)
-                {
-                    if (int.TryParse(kvp.Key, out var id) && kvp.Value != null)
-                    {
-                        _buttons[id] = kvp.Value.GetValue<bool>();
-                    }
-                }
+                _buttons[kvp.Key] = kvp.Value;
             }
         }
     }

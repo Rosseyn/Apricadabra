@@ -1,10 +1,12 @@
 namespace Loupedeck.ApricadabraPlugin
 {
     using System;
+    using System.Collections.Generic;
+    using Apricadabra.Client;
 
     public class ApricadabraPlugin : Plugin
     {
-        public CoreConnection Connection { get; private set; }
+        public ApricadabraClient Connection { get; private set; }
         public StateDisplay State { get; private set; }
         private bool _wasConnected;
 
@@ -20,11 +22,16 @@ namespace Loupedeck.ApricadabraPlugin
         public override void Load()
         {
             this.State = new StateDisplay();
-            this.Connection = new CoreConnection();
+            this.Connection = new ApricadabraClient("loupedeck");
 
-            this.Connection.OnStateUpdate += msg =>
+            this.Connection.OnConnected += (coreVersion, apiStatus) =>
             {
-                this.State.UpdateFromState(msg);
+                PluginLog.Info($"Connected to core v{coreVersion}");
+            };
+
+            this.Connection.OnStateUpdate += (axes, buttons) =>
+            {
+                this.State.UpdateFromState(axes, buttons);
                 if (!_wasConnected)
                 {
                     _wasConnected = true;
@@ -46,13 +53,6 @@ namespace Loupedeck.ApricadabraPlugin
                 this.State.ConnectionStatus = "Disconnected";
                 PluginLog.Warning("Disconnected from core");
                 this.OnPluginStatusChanged(Loupedeck.PluginStatus.Warning, "Disconnected from core", null, null);
-            };
-
-            this.Connection.OnShutdown += () =>
-            {
-                _wasConnected = false;
-                this.State.ConnectionStatus = "Core shutting down";
-                this.OnPluginStatusChanged(Loupedeck.PluginStatus.Warning, "Core shutting down", null, null);
             };
 
             _ = this.Connection.ConnectAsync();
