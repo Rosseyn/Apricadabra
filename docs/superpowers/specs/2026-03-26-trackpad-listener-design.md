@@ -61,12 +61,14 @@ Manages device registration and message dispatch for background touchpad capture
 - Registers with `RegisterRawInputDevices` using:
   - `usUsagePage = HID_USAGE_PAGE_DIGITIZER` (0x0D)
   - `usUsage = HID_USAGE_DIGITIZER_TOUCH_PAD` (0x05)
-  - `dwFlags = RIDEV_INPUTSINK` (background capture)
+  - `dwFlags = RIDEV_INPUTSINK | RIDEV_DEVNOTIFY` (background capture + device change notifications)
 - On `WM_INPUT`: calls `GetRawInputData`, passes raw HID bytes to `HidTouchpadParser`
-- Filters incoming events by device handle when a specific device is selected in settings
+- On `WM_INPUT_DEVICE_CHANGE`: re-enumerates devices via `HidTouchpadParser`, updates `AvailableDevices`, fires `OnDevicesChanged`
+- Filters incoming events by device handle when a specific device is selected in settings. If the selected device is removed, falls back to "all devices" and fires `OnDevicesChanged`.
 - Exposes:
   - `event Action<ContactFrame> OnContactFrame` — fires once per complete contact set
-  - `IReadOnlyList<TouchpadDevice> AvailableDevices` — discovered precision touchpads
+  - `event Action OnDevicesChanged` — fires when devices are added or removed (hot-plug)
+  - `IReadOnlyList<TouchpadDevice> AvailableDevices` — discovered precision touchpads (updated on hot-plug)
 
 ### HidTouchpadParser.cs
 
