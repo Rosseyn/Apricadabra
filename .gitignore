@@ -40,6 +40,12 @@ Thumbs.db
 *.exe
 *.war
 
+# Worktrees
+.worktrees/
+
+# Superpowers brainstorm artifacts
+.superpowers/
+
 # Large media files
 *.mp4
 *.tiff
