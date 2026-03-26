@@ -8,6 +8,12 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, Env
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Handle --version flag
+    if std::env::args().any(|a| a == "--version") {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     // Handle --stop flag: send UDP shutdown and exit
     if std::env::args().any(|a| a == "--stop") {
         let socket = std::net::UdpSocket::bind("0.0.0.0:0")?;
@@ -43,6 +49,12 @@ async fn main() -> anyhow::Result<()> {
         info!("Debug mode enabled via --debug flag");
     }
 
+    // Parse --debug-messages flag
+    let debug_messages = std::env::args().any(|a| a == "--debug-messages");
+    if debug_messages {
+        info!("Debug messages enabled via --debug-messages flag");
+    }
+
     #[cfg(windows)]
     let joystick: Box<dyn apricadabra_core::vjoy::VirtualJoystick> = {
         match apricadabra_core::vjoy::VJoyBackend::new() {
@@ -60,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("Not on Windows — using mock joystick");
         Box::new(MockJoystick::new())
     };
-    let server = Server::new(config, joystick);
+    let server = Server::new(config, joystick, debug_messages);
 
     // Handle Ctrl+C for graceful shutdown
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);

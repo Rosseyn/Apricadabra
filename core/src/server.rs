@@ -28,14 +28,16 @@ pub struct Server {
     config: Config,
     joystick: Box<dyn VirtualJoystick>,
     api_registry: ApiRegistry,
+    debug_messages: bool,
 }
 
 impl Server {
-    pub fn new(config: Config, joystick: Box<dyn VirtualJoystick>) -> Self {
+    pub fn new(config: Config, joystick: Box<dyn VirtualJoystick>, debug_messages: bool) -> Self {
         Self {
             config,
             joystick,
             api_registry: ApiRegistry::new(),
+            debug_messages,
         }
     }
 
@@ -216,8 +218,42 @@ impl Server {
                                 let _ = joystick.lock().await.release();
                                 break;
                             }
-                            if let Ok(msg) = serde_json::from_str::<ClientMessage>(trimmed) {
-                                Self::process_command(&self.config, &axis_mgr, &button_mgr, msg).await;
+                            match serde_json::from_str::<ClientMessage>(trimmed) {
+                                Ok(msg) => {
+                                    Self::process_command(&self.config, &axis_mgr, &button_mgr, msg).await;
+                                }
+                                Err(e) => {
+                                    if self.debug_messages {
+                                        if let Ok(raw) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                                            let action_type = raw.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                                            let mode = raw.get("mode").and_then(|m| m.as_str()).unwrap_or("");
+                                            let warning = if !mode.is_empty() {
+                                                ServerMessage::Warning {
+                                                    code: "unknown_mode".to_string(),
+                                                    message: format!("Unknown mode '{mode}' for {action_type} action"),
+                                                    context: HashMap::from([
+                                                        ("actionType".to_string(), action_type.to_string()),
+                                                        ("mode".to_string(), mode.to_string()),
+                                                    ]),
+                                                }
+                                            } else {
+                                                ServerMessage::Warning {
+                                                    code: "unknown_action".to_string(),
+                                                    message: format!("Unknown action type: {action_type}"),
+                                                    context: HashMap::from([
+                                                        ("actionType".to_string(), action_type.to_string()),
+                                                    ]),
+                                                }
+                                            };
+                                            if let Ok(json) = serde_json::to_string(&warning) {
+                                                let mut warn_json = json;
+                                                warn_json.push('\n');
+                                                let _ = server_broadcast_tx.send(warn_json);
+                                            }
+                                        }
+                                    }
+                                    tracing::debug!("Failed to parse command: {e}");
+                                }
                             }
                         }
                     }
