@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, Mutex};
 use tokio::time::{self, Duration, Instant};
 use tracing::{error, info, warn};
 
-const PROTOCOL_VERSION: u32 = 1;
+const PROTOCOL_VERSION: u32 = 2;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
 const TICK_INTERVAL: Duration = Duration::from_millis(16); // ~60Hz
@@ -316,7 +316,7 @@ impl Server {
         match hello {
             ClientMessage::Hello { version, name, broadcast_port, .. } => {
                 info!("Client {client_id} hello: {name} v{version}");
-                if version != PROTOCOL_VERSION {
+                if version > PROTOCOL_VERSION {
                     let err = ServerMessage::Error {
                         code: "unsupported_version".to_string(),
                         message: format!("Server supports protocol v{PROTOCOL_VERSION}, client sent v{version}"),

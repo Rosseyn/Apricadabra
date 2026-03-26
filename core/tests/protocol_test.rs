@@ -284,6 +284,17 @@ fn test_serialize_core_restarting_shutdown() {
 }
 
 #[test]
+fn test_hello_v1_and_v2_both_parse() {
+    let v1 = r#"{"type":"hello","version":1,"name":"loupedeck"}"#;
+    let v1_msg: ClientMessage = serde_json::from_str(v1).unwrap();
+    assert!(matches!(v1_msg, ClientMessage::Hello { version: 1, .. }));
+
+    let v2 = r#"{"type":"hello","version":2,"name":"trackpad","commands":["axis"]}"#;
+    let v2_msg: ClientMessage = serde_json::from_str(v2).unwrap();
+    assert!(matches!(v2_msg, ClientMessage::Hello { version: 2, .. }));
+}
+
+#[test]
 fn test_serialize_warning() {
     let mut context = HashMap::new();
     context.insert("axis".to_string(), "3".to_string());
