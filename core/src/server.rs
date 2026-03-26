@@ -286,7 +286,7 @@ impl Server {
                 info!("Reset axis {axis} to position {position}");
                 axis_mgr.lock().await.reset(axis, position);
             }
-            ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck => {}
+            ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck | ClientMessage::CoreUpgrade { .. } => {}
         }
     }
 

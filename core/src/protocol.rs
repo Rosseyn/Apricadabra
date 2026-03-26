@@ -45,6 +45,12 @@ pub enum ClientMessage {
         position: f32,
     },
     HeartbeatAck,
+    CoreUpgrade {
+        #[serde(rename = "newVersion")]
+        new_version: String,
+        #[serde(default, rename = "estimatedStartupMs")]
+        estimated_startup_ms: Option<u64>,
+    },
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -105,4 +111,16 @@ pub enum ServerMessage {
         message: String,
     },
     Shutdown,
+    CoreRestarting {
+        #[serde(rename = "coreStartTimeout")]
+        core_start_timeout: u64,
+        reason: String,
+        #[serde(skip_serializing_if = "Option::is_none", rename = "requestedBy")]
+        requested_by: Option<String>,
+    },
+    Warning {
+        code: String,
+        message: String,
+        context: HashMap<String, String>,
+    },
 }

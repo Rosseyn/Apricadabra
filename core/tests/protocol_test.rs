@@ -241,3 +241,63 @@ fn test_serialize_welcome_v1_compat() {
     assert!(!json.contains("apiStatus"));
     assert!(!json.contains("coreVersion"));
 }
+
+#[test]
+fn test_parse_core_upgrade() {
+    let json = r#"{"type":"core_upgrade","newVersion":"2.1.0","estimatedStartupMs":3000}"#;
+    let msg: ClientMessage = serde_json::from_str(json).unwrap();
+    match msg {
+        ClientMessage::CoreUpgrade { new_version, estimated_startup_ms } => {
+            assert_eq!(new_version, "2.1.0");
+            assert_eq!(estimated_startup_ms, Some(3000));
+        }
+        _ => panic!("Expected CoreUpgrade"),
+    }
+}
+
+#[test]
+fn test_serialize_core_restarting() {
+    let msg = ServerMessage::CoreRestarting {
+        core_start_timeout: 10000,
+        reason: "upgrade".to_string(),
+        requested_by: Some("streamdeck".to_string()),
+    };
+    let json = serde_json::to_string(&msg).unwrap();
+    assert!(json.contains("\"type\":\"core_restarting\""));
+    assert!(json.contains("\"coreStartTimeout\":10000"));
+    assert!(json.contains("\"reason\":\"upgrade\""));
+    assert!(json.contains("\"requestedBy\":\"streamdeck\""));
+}
+
+#[test]
+fn test_serialize_core_restarting_shutdown() {
+    let msg = ServerMessage::CoreRestarting {
+        core_start_timeout: 5000,
+        reason: "shutdown".to_string(),
+        requested_by: None,
+    };
+    let json = serde_json::to_string(&msg).unwrap();
+    assert!(json.contains("\"type\":\"core_restarting\""));
+    assert!(json.contains("\"coreStartTimeout\":5000"));
+    assert!(json.contains("\"reason\":\"shutdown\""));
+    assert!(!json.contains("requestedBy"));
+}
+
+#[test]
+fn test_serialize_warning() {
+    let mut context = HashMap::new();
+    context.insert("axis".to_string(), "3".to_string());
+    context.insert("limit".to_string(), "1.0".to_string());
+
+    let msg = ServerMessage::Warning {
+        code: "axis_limit_exceeded".to_string(),
+        message: "Axis value exceeds configured limit".to_string(),
+        context,
+    };
+    let json = serde_json::to_string(&msg).unwrap();
+    assert!(json.contains("\"type\":\"warning\""));
+    assert!(json.contains("\"code\":\"axis_limit_exceeded\""));
+    assert!(json.contains("\"message\":\"Axis value exceeds configured limit\""));
+    assert!(json.contains("\"axis\":\"3\""));
+    assert!(json.contains("\"limit\":\"1.0\""));
+}
