@@ -133,10 +133,11 @@ Responsibilities:
 After extracting the library:
 
 1. **Delete** `loupedeck-plugin/ApricadabraPlugin/src/CoreConnection.cs`
-2. **Add project reference** to `Apricadabra.Client` in the Loupedeck plugin's `.csproj`:
+2. **Add NuGet package reference** to `Apricadabra.Client` in the Loupedeck plugin's `.csproj`:
    ```xml
-   <ProjectReference Include="..\..\..\..\core\sdk\csharp\Apricadabra.Client\Apricadabra.Client.csproj" />
+   <PackageReference Include="Apricadabra.Client" Version="0.1.0" />
    ```
+   During local development, use a local NuGet source pointing to the library's build output. For distribution, publish to nuget.org.
 3. **Update namespace import** in all action files: `using Apricadabra.Client;`
 4. **Update `ApricadabraApplication.cs`** (or equivalent plugin entry point):
    - Replace `new CoreConnection()` with `new ApricadabraClient("loupedeck")`
