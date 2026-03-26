@@ -16,7 +16,7 @@ namespace Loupedeck.ApricadabraPlugin
     {
         private const string PipeName = "apricadabra";
         private const string CoreExeName = "apricadabra-core.exe";
-        private const int ProtocolVersion = 1;
+        private const int ProtocolVersion = 2;
         private const int UdpCommandPort = 19871;
         private const int UdpBroadcastPort = 19872;
 
@@ -28,6 +28,7 @@ namespace Loupedeck.ApricadabraPlugin
         private Task _pipeReadTask;
         private Task _udpListenTask;
         private bool _connected;
+        private DateTime _coreStartTimeout = DateTime.MinValue;
 
         public event Action<JsonObject> OnStateUpdate;
         public event Action<string, string> OnError;
@@ -56,7 +57,8 @@ namespace Loupedeck.ApricadabraPlugin
                     {
                         ["type"] = "hello",
                         ["version"] = ProtocolVersion,
-                        ["name"] = "loupedeck"
+                        ["name"] = "loupedeck",
+                        ["commands"] = new JsonArray("axis", "button", "reset")
                     };
                     await _writer.WriteLineAsync(hello.ToJsonString());
 
@@ -67,6 +69,28 @@ namespace Loupedeck.ApricadabraPlugin
                     var welcome = JsonNode.Parse(welcomeLine)?.AsObject();
                     if (welcome?["type"]?.GetValue<string>() != "welcome")
                         throw new IOException("Expected welcome message");
+
+                    var apiStatusNode = welcome["apiStatus"]?.AsObject();
+                    if (apiStatusNode != null)
+                    {
+                        foreach (var kvp in apiStatusNode)
+                        {
+                            var status = kvp.Value?.GetValue<string>();
+                            if (status == "deprecated")
+                            {
+                                System.Diagnostics.Trace.WriteLine($"[Apricadabra] Warning: command '{kvp.Key}' is deprecated");
+                            }
+                            else if (status == "undefined")
+                            {
+                                System.Diagnostics.Trace.WriteLine($"[Apricadabra] Error: command '{kvp.Key}' is undefined — core may need upgrade");
+                            }
+                        }
+                    }
+                    var coreVersion = welcome["coreVersion"]?.GetValue<string>();
+                    if (coreVersion != null)
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[Apricadabra] Connected to core v{coreVersion}");
+                    }
 
                     _connected = true;
                     delay = 100;
@@ -131,6 +155,11 @@ namespace Loupedeck.ApricadabraPlugin
                                 msg["message"]?.GetValue<string>() ?? "Unknown error"
                             );
                             break;
+                        case "core_restarting":
+                            var timeout = msg["coreStartTimeout"]?.GetValue<int>() ?? 15000;
+                            System.Diagnostics.Trace.WriteLine($"[Apricadabra] Core restarting, suppressing auto-launch for {timeout}ms");
+                            _coreStartTimeout = DateTime.UtcNow.AddMilliseconds(timeout);
+                            break;
                         case "shutdown":
                             OnShutdown?.Invoke();
                             return;
@@ -181,6 +210,11 @@ namespace Loupedeck.ApricadabraPlugin
 
         private void TryLaunchCore()
         {
+            if (DateTime.UtcNow < _coreStartTimeout)
+            {
+                return; // Suppress auto-launch during core restart
+            }
+
             try
             {
                 var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
