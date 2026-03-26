@@ -10,6 +10,8 @@ pub enum ClientMessage {
         name: String,
         #[serde(default, rename = "broadcastPort")]
         broadcast_port: Option<u16>,
+        #[serde(default)]
+        commands: Option<Vec<String>>,
     },
     Axis {
         axis: u8,
@@ -72,6 +74,14 @@ pub enum ButtonState {
     Up,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiStatus {
+    Exists,
+    Deprecated,
+    Undefined,
+}
+
 /// Messages sent from the core to plugins.
 #[derive(Debug, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -80,6 +90,10 @@ pub enum ServerMessage {
         version: u32,
         axes: HashMap<u8, f32>,
         buttons: HashMap<u8, bool>,
+        #[serde(skip_serializing_if = "Option::is_none", rename = "apiStatus")]
+        api_status: Option<HashMap<String, ApiStatus>>,
+        #[serde(skip_serializing_if = "Option::is_none", rename = "coreVersion")]
+        core_version: Option<String>,
     },
     State {
         axes: HashMap<u8, f32>,

@@ -314,7 +314,7 @@ impl Server {
         };
 
         match hello {
-            ClientMessage::Hello { version, name, broadcast_port } => {
+            ClientMessage::Hello { version, name, broadcast_port, .. } => {
                 info!("Client {client_id} hello: {name} v{version}");
                 if version != PROTOCOL_VERSION {
                     let err = ServerMessage::Error {
@@ -327,7 +327,7 @@ impl Server {
 
                 let axes = axis_mgr.lock().await.get_all();
                 let buttons = button_mgr.lock().await.get_all();
-                let welcome = ServerMessage::Welcome { version: PROTOCOL_VERSION, axes, buttons };
+                let welcome = ServerMessage::Welcome { version: PROTOCOL_VERSION, axes, buttons, api_status: None, core_version: None };
                 if Self::send_message(&mut writer, &welcome).await.is_err() {
                     return;
                 }
