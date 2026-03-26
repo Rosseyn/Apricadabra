@@ -1,3 +1,4 @@
+use crate::api_registry::ApiRegistry;
 use crate::axis::AxisManager;
 use crate::button::ButtonManager;
 use crate::config::Config;
@@ -9,7 +10,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 use tokio::net::UdpSocket;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::time::{self, Duration, Instant};
 use tracing::{error, info, warn};
 
@@ -26,11 +27,16 @@ const UDP_BROADCAST_PORT: u16 = 19872;
 pub struct Server {
     config: Config,
     joystick: Box<dyn VirtualJoystick>,
+    api_registry: ApiRegistry,
 }
 
 impl Server {
     pub fn new(config: Config, joystick: Box<dyn VirtualJoystick>) -> Self {
-        Self { config, joystick }
+        Self {
+            config,
+            joystick,
+            api_registry: ApiRegistry::new(),
+        }
     }
 
     pub async fn run(mut self, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) -> anyhow::Result<()> {
@@ -44,9 +50,13 @@ impl Server {
         let button_mgr = Arc::new(Mutex::new(ButtonManager::new()));
         let joystick = Arc::new(Mutex::new(self.joystick));
 
+        let api_registry = Arc::new(self.api_registry);
+
         let mut client_counter: u64 = 0;
         let connected_clients = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let (disconnect_tx, mut disconnect_rx) = mpsc::channel::<u64>(32);
+        let (server_broadcast_tx, _) = broadcast::channel::<String>(16);
+        let (upgrade_tx, mut upgrade_rx) = mpsc::channel::<()>(1);
 
         // UDP sockets
         let cmd_socket = UdpSocket::bind(format!("127.0.0.1:{UDP_COMMAND_PORT}")).await?;
@@ -61,6 +71,9 @@ impl Server {
         let accept_clients = connected_clients.clone();
         let accept_disconnect_tx = disconnect_tx.clone();
         let accept_broadcast_targets = broadcast_targets.clone();
+        let accept_api_registry = api_registry.clone();
+        let accept_server_broadcast_tx = server_broadcast_tx.clone();
+        let accept_upgrade_tx = upgrade_tx.clone();
         let pipe_name = self.config.pipe_name.clone();
 
         tokio::spawn(async move {
@@ -93,9 +106,12 @@ impl Server {
                 let clients = accept_clients.clone();
                 let disc_tx = accept_disconnect_tx.clone();
                 let bt = accept_broadcast_targets.clone();
+                let ar = accept_api_registry.clone();
+                let sbt = accept_server_broadcast_tx.clone();
+                let ut = accept_upgrade_tx.clone();
 
                 tokio::spawn(async move {
-                    Self::handle_client(client_id, pipe, axis, button, bt).await;
+                    Self::handle_client(client_id, pipe, axis, button, bt, ar, sbt, ut).await;
                     clients.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
                     let _ = disc_tx.send(client_id).await;
                     info!("Client {client_id} disconnected");
@@ -216,6 +232,12 @@ impl Server {
                     }
                 }
 
+                _ = upgrade_rx.recv() => {
+                    info!("Core upgrade requested, shutting down for upgrade");
+                    let _ = joystick.lock().await.release();
+                    break;
+                }
+
                 _ = shutdown_rx.changed() => {
                     if *shutdown_rx.borrow() {
                         info!("Shutting down");
@@ -296,6 +318,9 @@ impl Server {
         axis_mgr: Arc<Mutex<AxisManager>>,
         button_mgr: Arc<Mutex<ButtonManager>>,
         broadcast_targets: Arc<Mutex<HashMap<u64, std::net::SocketAddr>>>,
+        api_registry: Arc<ApiRegistry>,
+        server_broadcast_tx: broadcast::Sender<String>,
+        upgrade_tx: mpsc::Sender<()>,
     ) {
         let (reader, mut writer) = tokio::io::split(pipe);
         let mut reader = BufReader::new(reader);
@@ -313,8 +338,8 @@ impl Server {
             Err(_) => return,
         };
 
-        match hello {
-            ClientMessage::Hello { version, name, broadcast_port, .. } => {
+        let client_name = match hello {
+            ClientMessage::Hello { version, name, broadcast_port, commands } => {
                 info!("Client {client_id} hello: {name} v{version}");
                 if version > PROTOCOL_VERSION {
                     let err = ServerMessage::Error {
@@ -327,7 +352,22 @@ impl Server {
 
                 let axes = axis_mgr.lock().await.get_all();
                 let buttons = button_mgr.lock().await.get_all();
-                let welcome = ServerMessage::Welcome { version: PROTOCOL_VERSION, axes, buttons, api_status: None, core_version: None };
+
+                let (api_status, core_version) = match &commands {
+                    Some(cmds) => (
+                        Some(api_registry.resolve(cmds)),
+                        Some(env!("CARGO_PKG_VERSION").to_string()),
+                    ),
+                    None => (None, None),
+                };
+
+                let welcome = ServerMessage::Welcome {
+                    version: PROTOCOL_VERSION,
+                    axes,
+                    buttons,
+                    api_status,
+                    core_version,
+                };
                 if Self::send_message(&mut writer, &welcome).await.is_err() {
                     return;
                 }
@@ -335,16 +375,18 @@ impl Server {
                 let port = broadcast_port.unwrap_or(UDP_BROADCAST_PORT);
                 let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
                 broadcast_targets.lock().await.insert(client_id, addr);
-                info!("Client {client_id} registered broadcast target: {addr}");
+                info!("Client {client_id} ({name}) registered broadcast target: {addr}");
+                name
             }
             _ => return,
-        }
+        };
 
         line.clear();
 
-        // Pipe only handles heartbeat now
+        // Heartbeat + CoreUpgrade + server broadcast
         let mut heartbeat_interval = time::interval(HEARTBEAT_INTERVAL);
         let mut last_ack = Instant::now();
+        let mut server_broadcast_rx = server_broadcast_tx.subscribe();
 
         loop {
             tokio::select! {
@@ -353,12 +395,64 @@ impl Server {
                         Ok(0) | Err(_) => break,
                         Ok(_) => {
                             if let Ok(msg) = serde_json::from_str::<ClientMessage>(line.trim()) {
-                                if matches!(msg, ClientMessage::HeartbeatAck) {
-                                    last_ack = Instant::now();
+                                match msg {
+                                    ClientMessage::HeartbeatAck => {
+                                        last_ack = Instant::now();
+                                    }
+                                    ClientMessage::CoreUpgrade { new_version, estimated_startup_ms } => {
+                                        let current = match semver::Version::parse(env!("CARGO_PKG_VERSION")) {
+                                            Ok(v) => v,
+                                            Err(_) => continue, // should never happen
+                                        };
+                                        let requested = match semver::Version::parse(&new_version) {
+                                            Ok(v) => v,
+                                            Err(_) => {
+                                                let err = ServerMessage::Error {
+                                                    code: "invalid_version".to_string(),
+                                                    message: format!("Invalid version format: {new_version}"),
+                                                };
+                                                let _ = Self::send_message(&mut writer, &err).await;
+                                                continue;
+                                            }
+                                        };
+                                        if requested <= current {
+                                            let err = ServerMessage::Error {
+                                                code: "upgrade_rejected".to_string(),
+                                                message: format!(
+                                                    "Bundled version {new_version} is not newer than running version {}",
+                                                    env!("CARGO_PKG_VERSION")
+                                                ),
+                                            };
+                                            let _ = Self::send_message(&mut writer, &err).await;
+                                        } else {
+                                            let timeout = estimated_startup_ms.unwrap_or(15000);
+                                            let restart_msg = ServerMessage::CoreRestarting {
+                                                core_start_timeout: timeout,
+                                                reason: "upgrade".to_string(),
+                                                requested_by: Some(client_name.clone()),
+                                            };
+                                            if let Ok(json) = serde_json::to_string(&restart_msg) {
+                                                let mut broadcast_json = json;
+                                                broadcast_json.push('\n');
+                                                let _ = server_broadcast_tx.send(broadcast_json);
+                                            }
+                                            let _ = upgrade_tx.send(()).await;
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
                             line.clear();
                         }
+                    }
+                }
+
+                msg = server_broadcast_rx.recv() => {
+                    if let Ok(json) = msg {
+                        if writer.write_all(json.as_bytes()).await.is_err() {
+                            break;
+                        }
+                        let _ = writer.flush().await;
                     }
                 }
 
