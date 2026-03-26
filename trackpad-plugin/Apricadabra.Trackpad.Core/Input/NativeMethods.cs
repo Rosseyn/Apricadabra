@@ -463,6 +463,13 @@ namespace Apricadabra.Trackpad.Core.Input
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool DestroyWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern bool PostMessage(
+            IntPtr hWnd,
+            uint Msg,
+            IntPtr wParam,
+            IntPtr lParam);
+
         // ---- hid.dll ----
 
         [DllImport("hid.dll", SetLastError = true)]
