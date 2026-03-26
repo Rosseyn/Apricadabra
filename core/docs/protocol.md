@@ -399,7 +399,7 @@ During the timeout window, the plugin should:
 
 ## 9. Plugin Bindings Schema
 
-Each plugin stores its input-to-action mappings in a JSON file.
+For standalone plugins that own their own configuration. Host-managed plugins (Loupedeck, Stream Deck) continue using their platform's built-in settings storage.
 
 ### Location
 
@@ -410,15 +410,39 @@ Each plugin stores its input-to-action mappings in a JSON file.
 ```json
 {
   "schema": 1,
-  "plugin": "loupedeck",
+  "plugin": "trackpad",
   "bindings": [
     {
-      "input": { ... },
-      "action": { ... }
+      "id": "swipe-3-left-btn12",
+      "gesture": {
+        "type": "swipe",
+        "fingers": 3,
+        "direction": "left"
+      },
+      "action": {
+        "type": "button",
+        "button": 12,
+        "mode": "pulse"
+      }
+    },
+    {
+      "id": "pinch-axis3",
+      "gesture": {
+        "type": "pinch"
+      },
+      "action": {
+        "type": "axis",
+        "axis": 3,
+        "mode": "spring",
+        "sensitivity": 0.02,
+        "decayRate": 0.95
+      }
     }
   ]
 }
 ```
+
+### Top-Level Fields (Standardized)
 
 | Field | Type | Description |
 |---|---|---|
@@ -428,10 +452,30 @@ Each plugin stores its input-to-action mappings in a JSON file.
 
 ### Binding Object
 
-Each binding maps a plugin-specific **input** (gesture, knob turn, button press) to a protocol **action** (the message that will be sent to the core).
+Each binding maps a plugin-specific **input** to a protocol **action**.
 
-- **`action`** — Matches the wire format of a protocol command. For example, an axis binding's action would contain `type`, `axis`, `mode`, `sensitivity`, etc. exactly as they appear in the UDP message.
-- **`input`** — Plugin-specific. The schema is defined by each plugin and is not part of this protocol. For example, the Loupedeck plugin might use `{"knob": "knob1", "gesture": "rotate"}`.
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Plugin-generated unique identifier. Used for UI state management. |
+| `gesture` / `input` | object | **Plugin-specific.** Each plugin defines its own input vocabulary. Not standardized by this protocol. |
+| `action` | object | **Standardized.** Matches the wire format of a protocol command (see Message Reference). |
+
+### Action Object (Standardized)
+
+The `action` object uses the same fields as the core protocol messages:
+
+- **Button action:** `type`, `button`, `mode`, and mode-specific fields (`delay`, `rate`, `shortButton`, `longButton`, `threshold`)
+- **Axis action:** `type`, `axis`, `mode`, and mode-specific fields (`sensitivity`, `decayRate`, `steps`)
+- **Reset action:** `type`, `axis`, `position`
+
+### Input Object (Plugin-Specific)
+
+The input/gesture object is defined by each plugin. Examples:
+- **Trackpad:** `{"type": "swipe", "fingers": 3, "direction": "left"}`
+- **MIDI:** `{"type": "cc", "channel": 1, "controller": 7}`
+- **Gamepad:** `{"type": "button", "index": 0}`
+
+The protocol spec does not standardize input types across plugins.
 
 ---
 
