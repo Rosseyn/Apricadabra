@@ -409,7 +409,18 @@ impl Server {
                 }
 
                 let port = broadcast_port.unwrap_or(UDP_BROADCAST_PORT);
-                let addr: std::net::SocketAddr = format!("127.0.0.1:{port}").parse().unwrap();
+                let addr: std::net::SocketAddr = match format!("127.0.0.1:{port}").parse() {
+                    Ok(a) => a,
+                    Err(e) => {
+                        warn!("Client {client_id} sent invalid broadcast port {port}: {e}");
+                        let err = ServerMessage::Error {
+                            code: "invalid_port".to_string(),
+                            message: format!("Invalid broadcast port: {port}"),
+                        };
+                        let _ = Self::send_message(&mut writer, &err).await;
+                        return;
+                    }
+                };
                 broadcast_targets.lock().await.insert(client_id, addr);
                 info!("Client {client_id} ({name}) registered broadcast target: {addr}");
                 name

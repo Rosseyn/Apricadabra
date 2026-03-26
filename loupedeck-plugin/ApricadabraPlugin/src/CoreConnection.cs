@@ -126,7 +126,10 @@ namespace Loupedeck.ApricadabraPlugin
                 var bytes = Encoding.UTF8.GetBytes(message.ToJsonString());
                 await _udpSender.SendAsync(bytes, bytes.Length);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[Apricadabra] SendAsync failed: {ex.Message}");
+            }
         }
 
         private async Task PipeReadLoopAsync(CancellationToken ct)
@@ -147,7 +150,7 @@ namespace Loupedeck.ApricadabraPlugin
                         case "heartbeat":
                             // Heartbeat ack goes over pipe, not UDP
                             try { await _writer.WriteLineAsync(new JsonObject { ["type"] = "heartbeat_ack" }.ToJsonString()); }
-                            catch { }
+                            catch (Exception ex) { System.Diagnostics.Trace.WriteLine($"[Apricadabra] Heartbeat ack failed: {ex.Message}"); }
                             break;
                         case "error":
                             OnError?.Invoke(
@@ -166,7 +169,11 @@ namespace Loupedeck.ApricadabraPlugin
                     }
                 }
             }
-            catch { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[Apricadabra] Pipe read error: {ex.Message}");
+            }
 
             HandleDisconnect();
         }
@@ -191,10 +198,17 @@ namespace Loupedeck.ApricadabraPlugin
                         }
                     }
                     catch (OperationCanceledException) { break; }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[Apricadabra] UDP receive error: {ex.Message}");
+                    }
                 }
             }
-            catch { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[Apricadabra] UDP listener error: {ex.Message}");
+            }
         }
 
         private void HandleDisconnect()
@@ -235,7 +249,10 @@ namespace Loupedeck.ApricadabraPlugin
                     });
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[Apricadabra] Failed to launch core: {ex.Message}");
+            }
         }
 
         public void Dispose()

@@ -132,8 +132,14 @@ export class CoreConnection {
 
     private setupUdp(): void {
         this.udpSender = dgram.createSocket("udp4");
+        this.udpSender.on("error", (err) => {
+            console.error("[Apricadabra] UDP sender error:", err.message);
+        });
 
         this.udpListener = dgram.createSocket({ type: "udp4", reuseAddr: true });
+        this.udpListener.on("error", (err) => {
+            console.error("[Apricadabra] UDP listener error:", err.message);
+        });
         this.udpListener.bind(UDP_BROADCAST_PORT, "127.0.0.1");
         this.udpListener.on("message", (data) => {
             try {
@@ -141,7 +147,9 @@ export class CoreConnection {
                 if (msg.type === "state") {
                     this.onStateUpdate?.(msg.axes || {}, msg.buttons || {});
                 }
-            } catch {}
+            } catch (err) {
+                console.warn("[Apricadabra] Failed to parse UDP message:", (err as Error).message);
+            }
         });
     }
 
@@ -159,7 +167,9 @@ export class CoreConnection {
         this.cleanup();
         setTimeout(() => {
             this.reconnecting = false;
-            this.connect();
+            this.connect().catch((err) => {
+                console.error("[Apricadabra] Reconnect failed:", (err as Error).message);
+            });
         }, 1000);
     }
 
