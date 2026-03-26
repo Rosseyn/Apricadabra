@@ -7,7 +7,7 @@ import { existsSync } from "fs";
 const PIPE_NAME = "\\\\.\\pipe\\apricadabra";
 const UDP_COMMAND_PORT = 19871;
 const UDP_BROADCAST_PORT = 19873; // Unique port for Stream Deck
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const CORE_EXE_NAME = "apricadabra-core.exe";
 
 type StateCallback = (axes: Record<string, number>, buttons: Record<string, boolean>) => void;
@@ -19,6 +19,7 @@ export class CoreConnection {
     private udpListener: dgram.Socket | null = null;
     private connected = false;
     private reconnecting = false;
+    private coreStartTimeoutUntil = 0;
     private buffer = "";
 
     public onStateUpdate: StateCallback | null = null;
@@ -50,6 +51,7 @@ export class CoreConnection {
                     version: PROTOCOL_VERSION,
                     name: "streamdeck",
                     broadcastPort: UDP_BROADCAST_PORT,
+                    commands: ["axis", "button", "reset"],
                 });
                 pipe.write(hello + "\n");
             });
@@ -73,6 +75,22 @@ export class CoreConnection {
                         this.connected = true;
                         this.setupUdp();
                         this.onStatusChange?.("Connected");
+
+                        // Parse v2 fields
+                        if (msg.apiStatus) {
+                            for (const [cmd, status] of Object.entries(msg.apiStatus)) {
+                                if (status === "deprecated") {
+                                    console.warn(`[Apricadabra] Command '${cmd}' is deprecated`);
+                                } else if (status === "undefined") {
+                                    console.error(`[Apricadabra] Command '${cmd}' is undefined — core may need upgrade`);
+                                    // TODO: Could trigger core_upgrade flow here
+                                }
+                            }
+                        }
+                        if (msg.coreVersion) {
+                            console.log(`[Apricadabra] Connected to core v${msg.coreVersion}`);
+                        }
+
                         if (msg.axes || msg.buttons) {
                             this.onStateUpdate?.(msg.axes || {}, msg.buttons || {});
                         }
@@ -84,6 +102,11 @@ export class CoreConnection {
                     } else if (msg.type === "shutdown") {
                         this.onStatusChange?.("Core shutting down");
                         this.disconnect();
+                    } else if (msg.type === "core_restarting") {
+                        const timeout = msg.coreStartTimeout || 15000;
+                        console.log(`[Apricadabra] Core restarting, suppressing auto-launch for ${timeout}ms`);
+                        this.coreStartTimeoutUntil = Date.now() + timeout;
+                        this.onStatusChange?.("Core restarting...");
                     }
                 }
             });
@@ -109,8 +132,14 @@ export class CoreConnection {
 
     private setupUdp(): void {
         this.udpSender = dgram.createSocket("udp4");
+        this.udpSender.on("error", (err) => {
+            console.error("[Apricadabra] UDP sender error:", err.message);
+        });
 
         this.udpListener = dgram.createSocket({ type: "udp4", reuseAddr: true });
+        this.udpListener.on("error", (err) => {
+            console.error("[Apricadabra] UDP listener error:", err.message);
+        });
         this.udpListener.bind(UDP_BROADCAST_PORT, "127.0.0.1");
         this.udpListener.on("message", (data) => {
             try {
@@ -118,7 +147,9 @@ export class CoreConnection {
                 if (msg.type === "state") {
                     this.onStateUpdate?.(msg.axes || {}, msg.buttons || {});
                 }
-            } catch {}
+            } catch (err) {
+                console.warn("[Apricadabra] Failed to parse UDP message:", (err as Error).message);
+            }
         });
     }
 
@@ -136,7 +167,9 @@ export class CoreConnection {
         this.cleanup();
         setTimeout(() => {
             this.reconnecting = false;
-            this.connect();
+            this.connect().catch((err) => {
+                console.error("[Apricadabra] Reconnect failed:", (err as Error).message);
+            });
         }, 1000);
     }
 
@@ -155,6 +188,9 @@ export class CoreConnection {
     }
 
     private tryLaunchCore(): void {
+        if (Date.now() < this.coreStartTimeoutUntil) {
+            return; // Suppress auto-launch during core restart
+        }
         const appData = process.env.APPDATA || "";
         const candidates = [
             join(appData, "Apricadabra", CORE_EXE_NAME),
