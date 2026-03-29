@@ -1,0 +1,145 @@
+<UserControl x:Class="Apricadabra.Trackpad.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource BgPrimary}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+        <StackPanel MaxWidth="500">
+
+            <!-- Gesture Recognition -->
+            <TextBlock Text="GESTURE RECOGNITION" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,12"/>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Scroll finger count" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding FingerCountOptions}"
+                          SelectedItem="{Binding ScrollFingerCount}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Swipe distance" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.05" Maximum="0.50"
+                        Value="{Binding SwipeDistanceThreshold}" VerticalAlignment="Center"
+                        TickFrequency="0.05" IsSnapToTickEnabled="False"/>
+                <TextBlock Grid.Column="2" Text="{Binding SwipeDistanceThreshold, StringFormat='{}{0:F2}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Swipe speed" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.1" Maximum="1.0"
+                        Value="{Binding SwipeSpeedThreshold}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding SwipeSpeedThreshold, StringFormat='{}{0:F1}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Tap max duration" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="100" Maximum="1000"
+                        Value="{Binding TapMaxDuration}" VerticalAlignment="Center"
+                        IsSnapToTickEnabled="True" TickFrequency="50"/>
+                <TextBlock Grid.Column="2" Text="{Binding TapMaxDuration, StringFormat='{}{0}ms'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Tap max movement" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.01" Maximum="0.10"
+                        Value="{Binding TapMaxMovement}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding TapMaxMovement, StringFormat='{}{0:F2}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Sensitivity -->
+            <TextBlock Text="SENSITIVITY" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,12"/>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Scroll" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.1" Maximum="5.0"
+                        Value="{Binding ScrollSensitivity}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding ScrollSensitivity, StringFormat='{}{0:F1}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Pinch" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.1" Maximum="5.0"
+                        Value="{Binding PinchSensitivity}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding PinchSensitivity, StringFormat='{}{0:F1}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <Grid Margin="0,0,0,16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="40"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Rotate" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <Slider Grid.Column="1" Minimum="0.1" Maximum="5.0"
+                        Value="{Binding RotateSensitivity}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding RotateSensitivity, StringFormat='{}{0:F1}'}"
+                           Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Appearance -->
+            <TextBlock Text="APPEARANCE" FontSize="11" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextSecondary}" Margin="0,0,0,12"/>
+
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="180"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Theme" Foreground="{DynamicResource TextPrimary}"
+                           VerticalAlignment="Center"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding ThemeOptions}"
+                          SelectedItem="{Binding Theme}" VerticalAlignment="Center"/>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
