@@ -26,6 +26,10 @@ namespace Apricadabra.Trackpad
             // Load theme from settings
             var settings = TrackpadSettings.Load();
             ApplyTheme(settings.Theme ?? "dark");
+
+            var mainWindow = new MainWindow();
+            mainWindow.Initialize();
+            // Window starts hidden — tray icon is visible
         }
 
         public void ApplyTheme(string theme)
