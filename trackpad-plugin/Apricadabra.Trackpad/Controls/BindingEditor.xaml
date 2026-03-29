@@ -1,0 +1,114 @@
+<UserControl x:Class="Apricadabra.Trackpad.Controls.BindingEditor"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <StackPanel Margin="4">
+        <!-- Gesture row -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Gesture:" Foreground="{DynamicResource TextSecondary}"
+                       Width="60" VerticalAlignment="Center" FontSize="12"/>
+            <ComboBox x:Name="GestureType" Width="90" Margin="4,0"
+                      SelectedItem="{Binding EditGestureType}"
+                      SelectionChanged="GestureType_Changed">
+                <sys:String>scroll</sys:String>
+                <sys:String>pinch</sys:String>
+                <sys:String>rotate</sys:String>
+                <sys:String>swipe</sys:String>
+                <sys:String>tap</sys:String>
+            </ComboBox>
+            <TextBlock Text="Fingers:" Foreground="{DynamicResource TextSecondary}"
+                       VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"
+                       x:Name="FingersLabel"/>
+            <ComboBox x:Name="Fingers" Width="50" SelectedItem="{Binding EditFingers}">
+                <sys:Int32>2</sys:Int32>
+                <sys:Int32>3</sys:Int32>
+                <sys:Int32>4</sys:Int32>
+            </ComboBox>
+            <TextBlock Text="Direction:" Foreground="{DynamicResource TextSecondary}"
+                       VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"
+                       x:Name="DirectionLabel"/>
+            <ComboBox x:Name="Direction" Width="120" SelectedItem="{Binding EditDirection}"/>
+        </StackPanel>
+
+        <!-- Action row -->
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="Action:" Foreground="{DynamicResource TextSecondary}"
+                       Width="60" VerticalAlignment="Center" FontSize="12"/>
+            <ComboBox x:Name="ActionType" Width="70" Margin="4,0"
+                      SelectedItem="{Binding EditActionType}"
+                      SelectionChanged="ActionType_Changed">
+                <sys:String>axis</sys:String>
+                <sys:String>button</sys:String>
+            </ComboBox>
+
+            <!-- Axis fields -->
+            <StackPanel x:Name="AxisFields" Orientation="Horizontal">
+                <TextBlock Text="Axis:" Foreground="{DynamicResource TextSecondary}"
+                           VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"/>
+                <ComboBox Width="45" SelectedItem="{Binding EditAxis}">
+                    <sys:Int32>1</sys:Int32>
+                    <sys:Int32>2</sys:Int32>
+                    <sys:Int32>3</sys:Int32>
+                    <sys:Int32>4</sys:Int32>
+                    <sys:Int32>5</sys:Int32>
+                    <sys:Int32>6</sys:Int32>
+                    <sys:Int32>7</sys:Int32>
+                    <sys:Int32>8</sys:Int32>
+                </ComboBox>
+                <TextBlock Text="Mode:" Foreground="{DynamicResource TextSecondary}"
+                           VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"/>
+                <ComboBox x:Name="AxisMode" Width="80" SelectedItem="{Binding EditMode}"
+                          SelectionChanged="AxisMode_Changed">
+                    <sys:String>hold</sys:String>
+                    <sys:String>spring</sys:String>
+                    <sys:String>detent</sys:String>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- Button fields -->
+            <StackPanel x:Name="ButtonFields" Orientation="Horizontal" Visibility="Collapsed">
+                <TextBlock Text="Button:" Foreground="{DynamicResource TextSecondary}"
+                           VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"/>
+                <ComboBox Width="55" SelectedItem="{Binding EditButton}" IsEditable="True">
+                    <sys:Int32>1</sys:Int32>
+                    <sys:Int32>2</sys:Int32>
+                    <sys:Int32>3</sys:Int32>
+                    <sys:Int32>4</sys:Int32>
+                    <sys:Int32>5</sys:Int32>
+                    <sys:Int32>6</sys:Int32>
+                    <sys:Int32>7</sys:Int32>
+                    <sys:Int32>8</sys:Int32>
+                </ComboBox>
+                <TextBlock Text="Mode:" Foreground="{DynamicResource TextSecondary}"
+                           VerticalAlignment="Center" FontSize="12" Margin="8,0,4,0"/>
+                <ComboBox Width="100" SelectedItem="{Binding EditMode}">
+                    <sys:String>momentary</sys:String>
+                    <sys:String>toggle</sys:String>
+                    <sys:String>pulse</sys:String>
+                    <sys:String>double</sys:String>
+                    <sys:String>rapid</sys:String>
+                    <sys:String>longshort</sys:String>
+                </ComboBox>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Sensitivity (for axis) -->
+        <StackPanel x:Name="SensitivityPanel" Orientation="Horizontal" Margin="0,0,0,8">
+            <TextBlock Text="" Width="60"/>
+            <TextBlock Text="Sensitivity:" Foreground="{DynamicResource TextSecondary}"
+                       VerticalAlignment="Center" FontSize="12" Margin="4,0"/>
+            <Slider Width="150" Minimum="0.001" Maximum="0.1"
+                    Value="{Binding EditSensitivity}" VerticalAlignment="Center"/>
+            <TextBlock Text="{Binding EditSensitivity, StringFormat='{}{0:F3}'}"
+                       Foreground="{DynamicResource TextTertiary}" VerticalAlignment="Center" Margin="8,0"/>
+        </StackPanel>
+
+        <!-- Save/Cancel -->
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+            <Button Content="Save" Padding="12,4" Margin="0,0,8,0"
+                    Click="Save_Click"/>
+            <Button Content="Cancel" Padding="12,4"
+                    Click="Cancel_Click"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

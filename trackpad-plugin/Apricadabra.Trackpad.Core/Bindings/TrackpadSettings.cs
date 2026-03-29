@@ -34,6 +34,21 @@ namespace Apricadabra.Trackpad.Core.Bindings
         [JsonPropertyName("tapMaxMovement")]
         public float TapMaxMovement { get; set; } = 0.03f;
 
+        [JsonPropertyName("windowLeft")]
+        public double? WindowLeft { get; set; }
+
+        [JsonPropertyName("windowTop")]
+        public double? WindowTop { get; set; }
+
+        [JsonPropertyName("windowWidth")]
+        public double WindowWidth { get; set; } = 800;
+
+        [JsonPropertyName("windowHeight")]
+        public double WindowHeight { get; set; } = 500;
+
+        [JsonPropertyName("theme")]
+        public string Theme { get; set; } = "dark";
+
         private static string SettingsPath =>
             Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
