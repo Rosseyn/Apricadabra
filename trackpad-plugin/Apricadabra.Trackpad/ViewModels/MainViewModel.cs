@@ -69,6 +69,7 @@ namespace Apricadabra.Trackpad.ViewModels
             }
         }
 
+        public ICommand ShowWindowCommand { get; }
         public ICommand ShowBindingsCommand { get; }
         public ICommand ShowSettingsCommand { get; }
         public ICommand StartStopCommand { get; }
@@ -79,6 +80,11 @@ namespace Apricadabra.Trackpad.ViewModels
 
         public MainViewModel()
         {
+            ShowWindowCommand = new RelayCommand(() =>
+            {
+                Application.Current.MainWindow?.Show();
+                Application.Current.MainWindow?.Activate();
+            });
             ShowBindingsCommand = new RelayCommand(() => ActiveTab = "Bindings");
             ShowSettingsCommand = new RelayCommand(() => ActiveTab = "Settings");
             StartStopCommand = new RelayCommand(ToggleService);
