@@ -92,13 +92,10 @@ if /i "%TARGET%"=="loupedeck" (
 if /i "%TARGET%"=="streamdeck" (
     echo.
     echo [Building Stream Deck Plugin]
-    pushd "%ROOT%\streamdeck-plugin"
-    where npm >nul 2>&1
-    if errorlevel 1 (
-        echo   SKIP: npm not found — install Node.js on Windows to build Stream Deck plugin
-        set "FAILED=!FAILED! streamdeck"
-    ) else (
-        call npm run build
+    :: Detect if we're on a WSL path and use wsl to build if so
+    echo %ROOT% | findstr /i "wsl.localhost wsl$" >nul 2>&1
+    if not errorlevel 1 (
+        wsl bash -c "cd ~/projects/apricadabra/streamdeck-plugin && npm run build"
         if errorlevel 1 (
             echo   FAIL: streamdeck
             set "FAILED=!FAILED! streamdeck"
@@ -106,6 +103,23 @@ if /i "%TARGET%"=="streamdeck" (
             echo   OK: plugin.js
             set "BUILT=!BUILT! streamdeck"
         )
+    ) else (
+        pushd "%ROOT%\streamdeck-plugin"
+        where npm >nul 2>&1
+        if errorlevel 1 (
+            echo   SKIP: npm not found — install Node.js on Windows to build Stream Deck plugin
+            set "FAILED=!FAILED! streamdeck"
+        ) else (
+            call npm run build
+            if errorlevel 1 (
+                echo   FAIL: streamdeck
+                set "FAILED=!FAILED! streamdeck"
+            ) else (
+                echo   OK: plugin.js
+                set "BUILT=!BUILT! streamdeck"
+            )
+        )
+        popd
     )
     popd
     goto :eof
