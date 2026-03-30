@@ -5,6 +5,9 @@ on:
     tags:
       - 'loupedeck-v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
@@ -30,7 +33,7 @@ jobs:
         run: cargo build --release --manifest-path core/Cargo.toml
 
       - name: Build Loupedeck Plugin
-        run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj
+        run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj --configfile core/sdk/csharp/nuget.ci.config
 
       - name: Assemble .lplug4 package
         shell: pwsh
@@ -69,9 +72,17 @@ jobs:
           files: '*.lplug4'
           name: Loupedeck Plugin v${{ steps.version.outputs.VERSION }}
           body: |
-            Apricadabra Loupedeck Plugin v${{ steps.version.outputs.VERSION }}
+            Control vJoy virtual joystick axes and buttons from your Loupedeck device.
 
-            Includes bundled `apricadabra-core.exe`.
+            **Features:**
+            - 3 actions: vJoy Dial (axis control), vJoy Button, vJoy Reset Axis
+            - Axis modes: Hold, Spring (return to center), Detent (stepped positions)
+            - Button modes: Pulse, Toggle, Double Press
+            - Configurable sensitivity, invert, and encoder press-to-button
+            - Protocol v2 with API negotiation and live core upgrade support
+            - Auto-launches Apricadabra core — no manual setup required
+
+            **Requires:** vJoy driver installed, Logi Options+ with Plugin Service
 
             **Install:** Double-click the `.lplug4` file with Logi Plugin Service running.
             **Marketplace:** Upload to [Logi Marketplace](https://marketplace.logitech.com/contribute) for public distribution.

@@ -5,6 +5,9 @@ on:
     tags:
       - 'streamdeck-v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
@@ -60,9 +63,18 @@ jobs:
           files: '*.streamDeckPlugin'
           name: Stream Deck Plugin v${{ steps.version.outputs.VERSION }}
           body: |
-            Apricadabra Stream Deck Plugin v${{ steps.version.outputs.VERSION }}
+            Control vJoy virtual joystick axes and buttons from your Stream Deck.
 
-            Includes bundled `apricadabra-core.exe`.
+            **Features:**
+            - 3 actions: vJoy Dial (encoder slots), vJoy Button (keypad slots), vJoy Reset Axis (both)
+            - Axis modes: Hold, Spring (return to center), Detent (stepped positions)
+            - Button modes: Momentary, Toggle, Pulse, Double Press, Rapid Fire, Long/Short Press
+            - Full property inspectors with dynamic field visibility per mode
+            - Visual feedback: axis percentage on dial LCD layout
+            - Protocol v2 with API negotiation and live core upgrade support
+            - Auto-launches Apricadabra core — no manual setup required
+
+            **Requires:** vJoy driver installed, Stream Deck 6.9+
 
             **Install:** Double-click the `.streamDeckPlugin` file with Stream Deck running.
             **Marketplace:** Submit via [Elgato Maker Console](https://docs.elgato.com/streamdeck/sdk/introduction/distribution/) for public distribution.
