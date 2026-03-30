@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using Hardcodet.Wpf.TaskbarNotification;
 using Apricadabra.Trackpad.Core.Bindings;
 using Apricadabra.Trackpad.Core.Input;
 using Apricadabra.Trackpad.ViewModels;
@@ -12,6 +13,7 @@ namespace Apricadabra.Trackpad
     public partial class MainWindow : Window
     {
         private readonly MainViewModel _vm;
+        private TaskbarIcon _trayIcon;
         private BindingsView _bindingsView;
         private SettingsView _settingsView;
 
@@ -34,6 +36,23 @@ namespace Apricadabra.Trackpad
         public async void Initialize()
         {
             await _vm.InitializeAsync();
+
+            // System tray icon (created in code to avoid WPF single-child constraint)
+            _trayIcon = new TaskbarIcon
+            {
+                ToolTipText = "Apricadabra Trackpad",
+                ContextMenu = new ContextMenu
+                {
+                    Items =
+                    {
+                        new MenuItem { Header = "Open", Command = new RelayCommand(() => { Show(); Activate(); }) },
+                        new MenuItem { Header = "Start/Stop", Command = _vm.StartStopCommand },
+                        new Separator(),
+                        new MenuItem { Header = "Exit", Command = _vm.ExitCommand }
+                    }
+                }
+            };
+            _trayIcon.TrayMouseDoubleClick += (s, e) => { Show(); Activate(); };
 
             _bindingsView = new BindingsView { DataContext = _vm.BindingsVM };
             _settingsView = new SettingsView { DataContext = _vm.SettingsVM };
@@ -131,6 +150,5 @@ namespace Apricadabra.Trackpad
 
         private void TabBindings_Click(object sender, RoutedEventArgs e) => _vm.ActiveTab = "Bindings";
         private void TabSettings_Click(object sender, RoutedEventArgs e) => _vm.ActiveTab = "Settings";
-        private void TrayOpen_Click(object sender, RoutedEventArgs e) { Show(); Activate(); }
     }
 }
