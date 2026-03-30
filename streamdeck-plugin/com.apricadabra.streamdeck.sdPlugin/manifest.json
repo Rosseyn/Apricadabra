@@ -5,7 +5,7 @@
   "Version": "1.0.0.0",
   "Description": "A vJoy feeder app that turns your Stream Deck dials and buttons into virtual joystick inputs for sim games. Requires vJoy: https://sourceforge.net/projects/vjoystick/",
   "Author": "apricadabra",
-  "Category": "Apricadabra",
+  "Category": "Stream Deck to vJoy",
   "CategoryIcon": "imgs/category-icon",
   "Icon": "imgs/plugin-icon",
   "CodePath": "bin/plugin.js",

@@ -7,7 +7,9 @@
 #   ./scripts/build.sh streamdeck   # Build Stream Deck plugin only
 #   ./scripts/build.sh trackpad     # Build trackpad plugin (core lib + UI)
 #   ./scripts/build.sh sdk          # Build C# client SDK only
-#   ./scripts/build.sh core trackpad  # Build multiple targets
+#   ./scripts/build.sh validate        # Validate Stream Deck plugin
+#   ./scripts/build.sh pack-sd         # Package .streamDeckPlugin
+#   ./scripts/build.sh core trackpad   # Build multiple targets
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -78,9 +80,31 @@ for target in $TARGETS; do
             fi
             ;;
 
+        validate)
+            step "Validating Stream Deck Plugin"
+            if streamdeck validate "$ROOT/streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin" --no-update-check; then
+                ok "validation passed"
+                BUILT+=("validate")
+            else
+                fail "Validation failed"
+                FAILED+=("validate")
+            fi
+            ;;
+
+        pack-sd)
+            step "Packaging Stream Deck Plugin"
+            if streamdeck pack "$ROOT/streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin" --output "$ROOT"; then
+                ok ".streamDeckPlugin created"
+                BUILT+=("pack-sd")
+            else
+                fail "Packaging failed"
+                FAILED+=("pack-sd")
+            fi
+            ;;
+
         *)
             fail "Unknown target: $target"
-            echo "  Valid targets: $ALL_TARGETS"
+            echo "  Valid targets: $ALL_TARGETS validate pack-sd"
             FAILED+=("$target")
             ;;
     esac

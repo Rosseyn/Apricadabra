@@ -1,12 +1,14 @@
 @echo off
 :: Apricadabra Build Script
 :: Usage:
-::   scripts\build.bat              Build everything
-::   scripts\build.bat core         Build core only
-::   scripts\build.bat trackpad     Build trackpad plugin
-::   scripts\build.bat sdk          Build C# client SDK
-::   scripts\build.bat loupedeck    Build Loupedeck plugin
-::   scripts\build.bat streamdeck   Build Stream Deck plugin
+::   scripts\build.bat                Build everything
+::   scripts\build.bat core           Build core only
+::   scripts\build.bat trackpad       Build trackpad plugin
+::   scripts\build.bat sdk            Build C# client SDK
+::   scripts\build.bat loupedeck      Build Loupedeck plugin
+::   scripts\build.bat streamdeck     Build Stream Deck plugin
+::   scripts\build.bat validate       Validate Stream Deck plugin
+::   scripts\build.bat pack-sd        Package .streamDeckPlugin
 ::   scripts\build.bat core trackpad  Multiple targets
 
 setlocal enabledelayedexpansion
@@ -121,7 +123,6 @@ if /i "%TARGET%"=="streamdeck" (
         )
         popd
     )
-    popd
     goto :eof
 )
 
@@ -141,7 +142,57 @@ if /i "%TARGET%"=="trackpad" (
     goto :eof
 )
 
+if /i "%TARGET%"=="validate" (
+    echo.
+    echo [Validating Stream Deck Plugin]
+    echo %ROOT% | findstr /i "wsl.localhost wsl$" >nul 2>&1
+    if not errorlevel 1 (
+        wsl bash -c "streamdeck validate ~/projects/apricadabra/streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin --no-update-check"
+    ) else (
+        where streamdeck >nul 2>&1
+        if errorlevel 1 (
+            echo   SKIP: streamdeck CLI not found — run: npm install -g @elgato/cli
+            set "FAILED=!FAILED! validate"
+        ) else (
+            streamdeck validate "%ROOT%\streamdeck-plugin\com.apricadabra.streamdeck.sdPlugin" --no-update-check
+        )
+    )
+    if errorlevel 1 (
+        echo   FAIL: validate
+        set "FAILED=!FAILED! validate"
+    ) else (
+        echo   OK: validation passed
+        set "BUILT=!BUILT! validate"
+    )
+    goto :eof
+)
+
+if /i "%TARGET%"=="pack-sd" (
+    echo.
+    echo [Packaging Stream Deck Plugin]
+    echo %ROOT% | findstr /i "wsl.localhost wsl$" >nul 2>&1
+    if not errorlevel 1 (
+        wsl bash -c "streamdeck pack ~/projects/apricadabra/streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin --output ~/projects/apricadabra/"
+    ) else (
+        where streamdeck >nul 2>&1
+        if errorlevel 1 (
+            echo   SKIP: streamdeck CLI not found — run: npm install -g @elgato/cli
+            set "FAILED=!FAILED! pack-sd"
+        ) else (
+            streamdeck pack "%ROOT%\streamdeck-plugin\com.apricadabra.streamdeck.sdPlugin" --output "%ROOT%"
+        )
+    )
+    if errorlevel 1 (
+        echo   FAIL: pack-sd
+        set "FAILED=!FAILED! pack-sd"
+    ) else (
+        echo   OK: .streamDeckPlugin created
+        set "BUILT=!BUILT! pack-sd"
+    )
+    goto :eof
+)
+
 echo   Unknown target: %TARGET%
-echo   Valid targets: core sdk loupedeck streamdeck trackpad
+echo   Valid targets: core sdk loupedeck streamdeck trackpad validate pack-sd
 set "FAILED=!FAILED! %TARGET%"
 goto :eof
