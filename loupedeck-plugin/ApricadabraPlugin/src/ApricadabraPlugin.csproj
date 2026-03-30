@@ -12,15 +12,16 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
 
-    <PluginApiDir Condition="$(OS) == 'Windows_NT'">C:\Program Files\Logi\LogiPluginService\</PluginApiDir>
-    <PluginApiDir Condition="$(OS) != 'Windows_NT'">/Applications/Utilities/LogiPluginService.app/Contents/MonoBundle/</PluginApiDir>
+    <PluginApiDir Condition="$(OS) == 'Windows_NT' And Exists('C:\Program Files\Logi\LogiPluginService\PluginApi.dll')">C:\Program Files\Logi\LogiPluginService\</PluginApiDir>
+    <PluginApiDir Condition="$(OS) != 'Windows_NT' And Exists('/Applications/Utilities/LogiPluginService.app/Contents/MonoBundle/PluginApi.dll')">/Applications/Utilities/LogiPluginService.app/Contents/MonoBundle/</PluginApiDir>
+    <PluginApiDir Condition="'$(PluginApiDir)' == ''">$(MSBuildThisFileDirectory)..\lib\</PluginApiDir>
 
     <PluginDir Condition="$(OS) == 'Windows_NT'">$(LocalAppData)\Logi\LogiPluginService\Plugins\</PluginDir>
     <PluginDir Condition="$(OS) != 'Windows_NT'">~/Library/Application\ Support/Logi/LogiPluginService/Plugins/</PluginDir>
 
-    <BaseOutputPath>C:\Users\unsab\ApricadabraPlugin\</BaseOutputPath>
+    <BaseOutputPath Condition="'$(BaseOutputPath)' == ''">C:\Users\unsab\ApricadabraPlugin\</BaseOutputPath>
     <OutputPath>$(BaseOutputPath)bin\</OutputPath>
-    <DeployDir>C:\Users\unsab\ApricadabraPlugin\</DeployDir>
+    <DeployDir>$(BaseOutputPath)</DeployDir>
 
     <PluginShortName>Apricadabra</PluginShortName>
   </PropertyGroup>

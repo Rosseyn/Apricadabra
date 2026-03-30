@@ -33,7 +33,7 @@ jobs:
         run: cargo build --release --manifest-path core/Cargo.toml
 
       - name: Build Loupedeck Plugin
-        run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj --configfile core/sdk/csharp/nuget.ci.config
+        run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj --configfile core/sdk/csharp/nuget.ci.config /p:BaseOutputPath=${{ github.workspace }}/loupedeck-out/
 
       - name: Assemble .lplug4 package
         shell: pwsh
@@ -49,7 +49,7 @@ jobs:
           Copy-Item "loupedeck-plugin/ApricadabraPlugin/src/package/metadata/*" "$stageDir/metadata/" -Recurse
 
           # Copy plugin DLLs from build output
-          $buildOut = Get-ChildItem "loupedeck-plugin/ApricadabraPlugin/src/bin/Release/net8.0" -File
+          $buildOut = Get-ChildItem "${{ github.workspace }}/loupedeck-out/bin" -File
           foreach ($f in $buildOut) { Copy-Item $f.FullName "$stageDir/bin/" }
 
           # Bundle core binary + version file
