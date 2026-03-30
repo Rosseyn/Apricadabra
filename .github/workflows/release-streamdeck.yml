@@ -26,11 +26,14 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#streamdeck-v}" >> $GITHUB_OUTPUT
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Core
-        run: cargo build --release --manifest-path core/Cargo.toml
+      - name: Download core binary from latest core release
+        shell: bash
+        run: |
+          mkdir -p core-bin
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.exe" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.version" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Install Stream Deck CLI
         run: npm install -g @elgato/cli
@@ -44,9 +47,9 @@ jobs:
         run: |
           $sdPlugin = "streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin"
 
-          # Bundle core binary + version file
-          Copy-Item "core/target/release/apricadabra-core.exe" "$sdPlugin/"
-          Copy-Item "core/apricadabra-core.version" "$sdPlugin/"
+          # Bundle core binary + version file from downloaded release
+          Copy-Item "core-bin/apricadabra-core.exe" "$sdPlugin/"
+          Copy-Item "core-bin/apricadabra-core.version" "$sdPlugin/"
 
           # Update version in manifest.json
           $version = "${{ steps.version.outputs.VERSION }}"

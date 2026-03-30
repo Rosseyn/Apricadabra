@@ -26,11 +26,14 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#trackpad-v}" >> $GITHUB_OUTPUT
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Core
-        run: cargo build --release --manifest-path core/Cargo.toml
+      - name: Download core binary from latest core release
+        shell: bash
+        run: |
+          mkdir -p core-bin
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.exe" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.version" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build Trackpad Plugin
         run: dotnet publish trackpad-plugin/Apricadabra.Trackpad/Apricadabra.Trackpad.csproj -c Release -o publish-trackpad --configfile core/sdk/csharp/nuget.ci.config
@@ -46,9 +49,9 @@ jobs:
           # Copy published app
           Copy-Item "publish-trackpad/*" $outDir/ -Recurse
 
-          # Bundle core binary + version file
-          Copy-Item "core/target/release/apricadabra-core.exe" "$outDir/"
-          Copy-Item "core/apricadabra-core.version" "$outDir/"
+          # Bundle core binary + version file from downloaded release
+          Copy-Item "core-bin/apricadabra-core.exe" "$outDir/"
+          Copy-Item "core-bin/apricadabra-core.version" "$outDir/"
 
           # Create zip
           Compress-Archive -Path "$outDir/*" -DestinationPath "Apricadabra-Trackpad-v$version.zip" -Force

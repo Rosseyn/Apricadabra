@@ -1,0 +1,46 @@
+name: Release Core
+
+on:
+  push:
+    tags:
+      - 'core-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#core-v}" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Core
+        run: cargo build --release --manifest-path core/Cargo.toml
+
+      - name: Update version file
+        shell: bash
+        run: echo "${{ steps.version.outputs.VERSION }}" > core/apricadabra-core.version
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            core/target/release/apricadabra-core.exe
+            core/apricadabra-core.version
+          name: Core v${{ steps.version.outputs.VERSION }}
+          body: |
+            Apricadabra Core v${{ steps.version.outputs.VERSION }}
+
+            The central vJoy multiplexer service. Plugins connect via named pipe + UDP.
+
+            This binary is bundled automatically into plugin releases.

@@ -26,11 +26,14 @@ jobs:
         shell: bash
         run: echo "VERSION=${GITHUB_REF_NAME#loupedeck-v}" >> $GITHUB_OUTPUT
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Core
-        run: cargo build --release --manifest-path core/Cargo.toml
+      - name: Download core binary from latest core release
+        shell: bash
+        run: |
+          mkdir -p core-bin
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.exe" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+          gh release download --repo ${{ github.repository }} --pattern "apricadabra-core.version" --dir core-bin --clobber $(gh release list --repo ${{ github.repository }} --limit 50 | grep "^Core " | head -1 | awk '{print $NF}')
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build Loupedeck Plugin
         run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj --configfile core/sdk/csharp/nuget.ci.config /p:BaseOutputPath=${{ github.workspace }}/loupedeck-out/
@@ -52,9 +55,9 @@ jobs:
           $buildOut = Get-ChildItem "${{ github.workspace }}/loupedeck-out/bin" -File
           foreach ($f in $buildOut) { Copy-Item $f.FullName "$stageDir/bin/" }
 
-          # Bundle core binary + version file
-          Copy-Item "core/target/release/apricadabra-core.exe" "$stageDir/bin/"
-          Copy-Item "core/apricadabra-core.version" "$stageDir/bin/"
+          # Bundle core binary + version file from downloaded release
+          Copy-Item "core-bin/apricadabra-core.exe" "$stageDir/bin/"
+          Copy-Item "core-bin/apricadabra-core.version" "$stageDir/bin/"
 
           # Update version in LoupedeckPackage.yaml
           $yaml = Get-Content "$stageDir/metadata/LoupedeckPackage.yaml" -Raw
