@@ -39,7 +39,7 @@ namespace Apricadabra.Trackpad.Core.Input
         private IntPtr _currentFrameDevice;
 
         public List<TouchpadDevice> Devices => _devices;
-        public Dictionary<IntPtr, DeviceContext> DeviceContexts => _deviceContexts;
+        internal Dictionary<IntPtr, DeviceContext> DeviceContexts => _deviceContexts;
         public event Action<ContactFrame> OnContactFrame;
 
         #region Device discovery

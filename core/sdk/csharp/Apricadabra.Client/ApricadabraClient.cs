@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.IO.Pipes;
 using System.Net;
 using System.Net.Sockets;
@@ -212,7 +213,7 @@ namespace Apricadabra.Client
                         ["version"] = ProtocolVersion,
                         ["name"] = _pluginName,
                         ["broadcastPort"] = _broadcastPort,
-                        ["commands"] = new JsonArray(_commands)
+                        ["commands"] = new JsonArray(_commands.Select(c => (JsonNode)JsonValue.Create(c)).ToArray())
                     };
                     await _writer.WriteLineAsync(hello.ToJsonString());
 
