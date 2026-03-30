@@ -1,9 +1,9 @@
 {
   "SDKVersion": 2,
   "UUID": "com.apricadabra.streamdeck",
-  "Name": "Apricadabra",
+  "Name": "Stream Deck to vJoy",
   "Version": "1.0.0.0",
-  "Description": "Control vJoy virtual joystick axes and buttons from Stream Deck dials and buttons for sim games",
+  "Description": "A vJoy feeder app that turns your Stream Deck dials and buttons into virtual joystick inputs for sim games. Requires vJoy: https://sourceforge.net/projects/vjoystick/",
   "Author": "apricadabra",
   "Category": "Apricadabra",
   "CategoryIcon": "imgs/category-icon",

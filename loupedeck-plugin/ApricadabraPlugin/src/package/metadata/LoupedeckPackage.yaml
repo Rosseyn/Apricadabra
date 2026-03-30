@@ -9,10 +9,10 @@ type: plugin4
 name: Apricadabra
 
 # Plugin name that is shown to the user.
-displayName: Apricadabra
+displayName: Loupedeck to vJoy
 
 # Short description of the plugin.
-description: Control vJoy virtual joystick axes and buttons from Loupedeck dials and buttons.
+description: A vJoy feeder app that turns your Loupedeck dials and buttons into virtual joystick inputs for sim games. Requires vJoy (https://sourceforge.net/projects/vjoystick/).
 
 # Name of the plugin library file.
 pluginFileName: ApricadabraPlugin.dll
