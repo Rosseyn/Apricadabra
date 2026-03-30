@@ -1,0 +1,79 @@
+name: Release Trackpad Plugin
+
+on:
+  push:
+    tags:
+      - 'trackpad-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#trackpad-v}" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Core
+        run: cargo build --release --manifest-path core/Cargo.toml
+
+      - name: Build Trackpad Plugin
+        run: dotnet publish trackpad-plugin/Apricadabra.Trackpad/Apricadabra.Trackpad.csproj -c Release -o publish-trackpad --configfile core/sdk/csharp/nuget.ci.config
+
+      - name: Bundle release
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $outDir = "Apricadabra-Trackpad-v$version"
+
+          New-Item -ItemType Directory -Force $outDir
+
+          # Copy published app
+          Copy-Item "publish-trackpad/*" $outDir/ -Recurse
+
+          # Bundle core binary + version file
+          Copy-Item "core/target/release/apricadabra-core.exe" "$outDir/"
+          Copy-Item "core/apricadabra-core.version" "$outDir/"
+
+          # Create zip
+          Compress-Archive -Path "$outDir/*" -DestinationPath "Apricadabra-Trackpad-v$version.zip" -Force
+          Write-Host "Created Apricadabra-Trackpad-v$version.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: 'Apricadabra-Trackpad-*.zip'
+          name: Trackpad Plugin v${{ steps.version.outputs.VERSION }}
+          body: |
+            Apricadabra Trackpad Plugin v${{ steps.version.outputs.VERSION }}
+
+            Capture gestures from any Windows Precision Touchpad and map them to vJoy virtual joystick inputs for sim games.
+
+            **Features:**
+            - Background gesture capture via Raw Input API (works while games have focus)
+            - Gestures: scroll, pinch, rotate, swipe (3/4-finger), multi-finger taps
+            - Configurable scroll finger count, sensitivity thresholds, tap timing
+            - Hybrid UI: binding editor with inline editing + live gesture test panel
+            - System tray app with Dark/Light/System theme support
+            - Hot-plug device detection with device selector
+            - Protocol v2 with API negotiation and live core upgrade support
+            - Auto-launches Apricadabra core — no manual setup required
+
+            **Requires:** vJoy driver installed, Windows 10+ with a Precision Touchpad
+
+            **Install:** Extract the zip and run `Apricadabra.Trackpad.exe`. It will appear in your system tray.
