@@ -9,9 +9,9 @@
                 <DataTemplate>
                     <Border Margin="0,0,0,6" CornerRadius="6"
                             Background="{DynamicResource BgTertiary}" Padding="10,8">
-                        <!-- Collapsed row -->
-                        <StackPanel Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
-                            <DockPanel>
+                        <StackPanel>
+                            <!-- Collapsed row -->
+                            <DockPanel Visibility="{Binding IsEditing, Converter={StaticResource InverseBoolToVis}}">
                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="edit" Foreground="{DynamicResource TextTertiary}"
                                                FontSize="11" Cursor="Hand" Margin="0,0,8,0"
@@ -28,11 +28,11 @@
                                                Foreground="{DynamicResource Accent}" FontSize="13"/>
                                 </StackPanel>
                             </DockPanel>
-                        </StackPanel>
 
-                        <!-- Expanded editor -->
-                        <controls:BindingEditor Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
-                                                DataContext="{Binding}"/>
+                            <!-- Expanded editor -->
+                            <controls:BindingEditor Visibility="{Binding IsEditing, Converter={StaticResource BoolToVis}}"
+                                                    DataContext="{Binding}"/>
+                        </StackPanel>
                     </Border>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
