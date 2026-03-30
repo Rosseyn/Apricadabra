@@ -1,0 +1,77 @@
+name: Release Loupedeck Plugin
+
+on:
+  push:
+    tags:
+      - 'loupedeck-v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#loupedeck-v}" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Core
+        run: cargo build --release --manifest-path core/Cargo.toml
+
+      - name: Build Loupedeck Plugin
+        run: dotnet build -c Release loupedeck-plugin/ApricadabraPlugin/src/ApricadabraPlugin.csproj
+
+      - name: Assemble .lplug4 package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $stageDir = "stage-loupedeck"
+
+          # Create package directory structure
+          New-Item -ItemType Directory -Force "$stageDir/metadata"
+          New-Item -ItemType Directory -Force "$stageDir/bin"
+
+          # Copy metadata
+          Copy-Item "loupedeck-plugin/ApricadabraPlugin/src/package/metadata/*" "$stageDir/metadata/" -Recurse
+
+          # Copy plugin DLLs from build output
+          $buildOut = Get-ChildItem "loupedeck-plugin/ApricadabraPlugin/src/bin/Release/net8.0" -File
+          foreach ($f in $buildOut) { Copy-Item $f.FullName "$stageDir/bin/" }
+
+          # Bundle core binary + version file
+          Copy-Item "core/target/release/apricadabra-core.exe" "$stageDir/bin/"
+          Copy-Item "core/apricadabra-core.version" "$stageDir/bin/"
+
+          # Update version in LoupedeckPackage.yaml
+          $yaml = Get-Content "$stageDir/metadata/LoupedeckPackage.yaml" -Raw
+          $yaml = $yaml -replace 'version: .*', "version: $version"
+          Set-Content "$stageDir/metadata/LoupedeckPackage.yaml" $yaml
+
+          # Create .lplug4 (zip with .lplug4 extension)
+          $outFile = "Apricadabra_$($version -replace '\.','_').lplug4"
+          Compress-Archive -Path "$stageDir/*" -DestinationPath $outFile -Force
+          Write-Host "Created $outFile"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.lplug4'
+          name: Loupedeck Plugin v${{ steps.version.outputs.VERSION }}
+          body: |
+            Apricadabra Loupedeck Plugin v${{ steps.version.outputs.VERSION }}
+
+            Includes bundled `apricadabra-core.exe`.
+
+            **Install:** Double-click the `.lplug4` file with Logi Plugin Service running.
+            **Marketplace:** Upload to [Logi Marketplace](https://marketplace.logitech.com/contribute) for public distribution.

@@ -1,0 +1,68 @@
+name: Release Stream Deck Plugin
+
+on:
+  push:
+    tags:
+      - 'streamdeck-v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#streamdeck-v}" >> $GITHUB_OUTPUT
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Core
+        run: cargo build --release --manifest-path core/Cargo.toml
+
+      - name: Install Stream Deck CLI
+        run: npm install -g @elgato/cli
+
+      - name: Build Stream Deck Plugin
+        working-directory: streamdeck-plugin
+        run: npm ci && npm run build
+
+      - name: Bundle core into sdPlugin
+        shell: pwsh
+        run: |
+          $sdPlugin = "streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin"
+
+          # Bundle core binary + version file
+          Copy-Item "core/target/release/apricadabra-core.exe" "$sdPlugin/"
+          Copy-Item "core/apricadabra-core.version" "$sdPlugin/"
+
+          # Update version in manifest.json
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $manifest = Get-Content "$sdPlugin/manifest.json" | ConvertFrom-Json
+          $manifest.Version = "$version.0"
+          $manifest | ConvertTo-Json -Depth 10 | Set-Content "$sdPlugin/manifest.json"
+
+      - name: Package .streamDeckPlugin
+        run: streamdeck pack streamdeck-plugin/com.apricadabra.streamdeck.sdPlugin --output .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.streamDeckPlugin'
+          name: Stream Deck Plugin v${{ steps.version.outputs.VERSION }}
+          body: |
+            Apricadabra Stream Deck Plugin v${{ steps.version.outputs.VERSION }}
+
+            Includes bundled `apricadabra-core.exe`.
+
+            **Install:** Double-click the `.streamDeckPlugin` file with Stream Deck running.
+            **Marketplace:** Submit via [Elgato Maker Console](https://docs.elgato.com/streamdeck/sdk/introduction/distribution/) for public distribution.
