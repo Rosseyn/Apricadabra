@@ -13,7 +13,7 @@ setlocal enabledelayedexpansion
 set "ROOT=%~dp0.."
 set "BUILT="
 set "FAILED="
-set "HAD_FAILURE=0"
+set "SDK_PACKED=0"
 
 if "%~1"=="" (
     call :build core
@@ -32,12 +32,26 @@ if "%~1"=="" (
 :summary
 echo.
 echo --- Build Summary ---
-if defined BUILT echo   OK: %BUILT%
+if defined BUILT echo   OK:%BUILT%
 if defined FAILED (
-    echo   FAILED: %FAILED%
+    echo   FAILED:%FAILED%
     exit /b 1
 )
 exit /b 0
+
+:: Ensure SDK is packed locally (needed by loupedeck, trackpad)
+:ensure_sdk
+if "%SDK_PACKED%"=="1" goto :eof
+echo   [Packing Apricadabra.Client NuGet locally...]
+pushd "%ROOT%\core\sdk\csharp\Apricadabra.Client"
+dotnet pack -c Release --no-build >nul 2>&1
+if errorlevel 1 (
+    dotnet build -c Release >nul 2>&1
+    dotnet pack -c Release --no-build >nul 2>&1
+)
+popd
+set "SDK_PACKED=1"
+goto :eof
 
 :build
 set "TARGET=%~1"
@@ -50,7 +64,6 @@ if /i "%TARGET%"=="core" (
     if errorlevel 1 (
         echo   FAIL: core
         set "FAILED=!FAILED! core"
-        set "HAD_FAILURE=1"
     ) else (
         echo   OK: apricadabra-core.exe
         set "BUILT=!BUILT! core"
@@ -63,19 +76,21 @@ if /i "%TARGET%"=="sdk" (
     echo.
     echo [Building Apricadabra.Client SDK]
     pushd "%ROOT%\core\sdk\csharp\Apricadabra.Client"
-    dotnet build -c Release
+    dotnet pack -c Release
     if errorlevel 1 (
         echo   FAIL: sdk
         set "FAILED=!FAILED! sdk"
     ) else (
-        echo   OK: Apricadabra.Client.dll
+        echo   OK: Apricadabra.Client.nupkg
         set "BUILT=!BUILT! sdk"
+        set "SDK_PACKED=1"
     )
     popd
     goto :eof
 )
 
 if /i "%TARGET%"=="loupedeck" (
+    call :ensure_sdk
     echo.
     echo [Building Loupedeck Plugin]
     pushd "%ROOT%\loupedeck-plugin\ApricadabraPlugin\src"
@@ -95,19 +110,26 @@ if /i "%TARGET%"=="streamdeck" (
     echo.
     echo [Building Stream Deck Plugin]
     pushd "%ROOT%\streamdeck-plugin"
-    call npm run build
+    where npm >nul 2>&1
     if errorlevel 1 (
-        echo   FAIL: streamdeck
+        echo   SKIP: npm not found — install Node.js on Windows to build Stream Deck plugin
         set "FAILED=!FAILED! streamdeck"
     ) else (
-        echo   OK: plugin.js
-        set "BUILT=!BUILT! streamdeck"
+        call npm run build
+        if errorlevel 1 (
+            echo   FAIL: streamdeck
+            set "FAILED=!FAILED! streamdeck"
+        ) else (
+            echo   OK: plugin.js
+            set "BUILT=!BUILT! streamdeck"
+        )
     )
     popd
     goto :eof
 )
 
 if /i "%TARGET%"=="trackpad" (
+    call :ensure_sdk
     echo.
     echo [Building Trackpad Plugin]
     pushd "%ROOT%\trackpad-plugin\Apricadabra.Trackpad"
