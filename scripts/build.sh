@@ -58,7 +58,7 @@ for target in $TARGETS; do
 
         streamdeck)
             step "Building Stream Deck Plugin"
-            if (cd "$ROOT/streamdeck-plugin" && npm run build); then
+            if (cd "$ROOT/streamdeck-plugin" && chmod +x node_modules/.bin/* 2>/dev/null; npm run build); then
                 ok "plugin.js"
                 BUILT+=("streamdeck")
             else

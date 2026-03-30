@@ -95,7 +95,7 @@ if /i "%TARGET%"=="streamdeck" (
     :: Detect if we're on a WSL path and use wsl to build if so
     echo %ROOT% | findstr /i "wsl.localhost wsl$" >nul 2>&1
     if not errorlevel 1 (
-        wsl bash -c "cd ~/projects/apricadabra/streamdeck-plugin && npm run build"
+        wsl bash -c "cd ~/projects/apricadabra/streamdeck-plugin && chmod +x node_modules/.bin/* 2>/dev/null; npm run build"
         if errorlevel 1 (
             echo   FAIL: streamdeck
             set "FAILED=!FAILED! streamdeck"
