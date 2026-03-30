@@ -13,7 +13,6 @@ setlocal enabledelayedexpansion
 set "ROOT=%~dp0.."
 set "BUILT="
 set "FAILED="
-set "SDK_PACKED=0"
 
 if "%~1"=="" (
     call :build core
@@ -39,20 +38,6 @@ if defined FAILED (
 )
 exit /b 0
 
-:: Ensure SDK is packed locally (needed by loupedeck, trackpad)
-:ensure_sdk
-if "%SDK_PACKED%"=="1" goto :eof
-echo   [Packing Apricadabra.Client NuGet locally...]
-pushd "%ROOT%\core\sdk\csharp\Apricadabra.Client"
-dotnet pack -c Release --no-build >nul 2>&1
-if errorlevel 1 (
-    dotnet build -c Release >nul 2>&1
-    dotnet pack -c Release --no-build >nul 2>&1
-)
-popd
-set "SDK_PACKED=1"
-goto :eof
-
 :build
 set "TARGET=%~1"
 
@@ -76,21 +61,19 @@ if /i "%TARGET%"=="sdk" (
     echo.
     echo [Building Apricadabra.Client SDK]
     pushd "%ROOT%\core\sdk\csharp\Apricadabra.Client"
-    dotnet pack -c Release
+    dotnet build -c Release
     if errorlevel 1 (
         echo   FAIL: sdk
         set "FAILED=!FAILED! sdk"
     ) else (
-        echo   OK: Apricadabra.Client.nupkg
+        echo   OK: Apricadabra.Client.dll
         set "BUILT=!BUILT! sdk"
-        set "SDK_PACKED=1"
     )
     popd
     goto :eof
 )
 
 if /i "%TARGET%"=="loupedeck" (
-    call :ensure_sdk
     echo.
     echo [Building Loupedeck Plugin]
     pushd "%ROOT%\loupedeck-plugin\ApricadabraPlugin\src"
@@ -129,7 +112,6 @@ if /i "%TARGET%"=="streamdeck" (
 )
 
 if /i "%TARGET%"=="trackpad" (
-    call :ensure_sdk
     echo.
     echo [Building Trackpad Plugin]
     pushd "%ROOT%\trackpad-plugin\Apricadabra.Trackpad"
