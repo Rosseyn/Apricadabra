@@ -8,6 +8,8 @@ on:
 jobs:
   publish:
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
@@ -22,7 +24,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#sdk-csharp-v}" >> $GITHUB_OUTPUT
 
       - name: Pack
-        run: dotnet pack core/sdk/csharp/Apricadabra.Client/Apricadabra.Client.csproj -c Release /p:Version=${{ steps.version.outputs.VERSION }}
+        run: dotnet pack core/sdk/csharp/Apricadabra.Client/Apricadabra.Client.csproj -c Release /p:Version=${{ steps.version.outputs.VERSION }} --configfile core/sdk/csharp/nuget.ci.config
 
       - name: Push to NuGet
         run: dotnet nuget push core/sdk/csharp/Apricadabra.Client/bin/Release/Apricadabra.Client.${{ steps.version.outputs.VERSION }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
