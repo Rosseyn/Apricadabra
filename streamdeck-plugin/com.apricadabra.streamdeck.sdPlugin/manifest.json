@@ -2,24 +2,24 @@
   "SDKVersion": 2,
   "UUID": "com.apricadabra.streamdeck",
   "Name": "Apricadabra",
-  "Version": "0.1.0.0",
-  "Description": "Control vJoy virtual joystick axes and buttons",
+  "Version": "1.0.0.0",
+  "Description": "Control vJoy virtual joystick axes and buttons from Stream Deck dials and buttons for sim games",
   "Author": "apricadabra",
   "Category": "Apricadabra",
-  "CategoryIcon": "imgs/plugin-icon",
+  "CategoryIcon": "imgs/category-icon",
   "Icon": "imgs/plugin-icon",
   "CodePath": "bin/plugin.js",
   "Nodejs": {
-    "Version": "20",
-    "Debug": "enabled"
+    "Version": "20"
   },
   "OS": [{ "Platform": "windows", "MinimumVersion": "10" }],
   "Software": { "MinimumVersion": "6.9" },
   "Actions": [
     {
-      "UUID": "com.apricadabra.dial",
+      "UUID": "com.apricadabra.streamdeck.dial",
       "Name": "vJoy Dial",
-      "Icon": "imgs/dial-icon",
+      "Tooltip": "Control a vJoy axis with the encoder dial. Supports Hold, Spring, and Detent modes.",
+      "Icon": "imgs/dial-action",
       "Controllers": ["Encoder"],
       "States": [{ "Image": "imgs/dial-icon" }],
       "Encoder": {
@@ -33,17 +33,19 @@
       "PropertyInspectorPath": "pi/dial.html"
     },
     {
-      "UUID": "com.apricadabra.button",
+      "UUID": "com.apricadabra.streamdeck.button",
       "Name": "vJoy Button",
-      "Icon": "imgs/button-icon",
+      "Tooltip": "Fire a vJoy button press. Supports Momentary, Toggle, Pulse, Double, Rapid Fire, and Long/Short modes.",
+      "Icon": "imgs/button-action",
       "Controllers": ["Keypad"],
       "States": [{ "Image": "imgs/button-icon" }],
       "PropertyInspectorPath": "pi/button.html"
     },
     {
-      "UUID": "com.apricadabra.reset",
+      "UUID": "com.apricadabra.streamdeck.reset",
       "Name": "vJoy Reset Axis",
-      "Icon": "imgs/reset-icon",
+      "Tooltip": "Reset a vJoy axis to a specific position (e.g. center at 50%).",
+      "Icon": "imgs/reset-action",
       "Controllers": ["Keypad", "Encoder"],
       "States": [{ "Image": "imgs/reset-icon" }],
       "Encoder": {

@@ -8,13 +8,13 @@ import { ResetAxisAction } from "./actions/reset-axis-action";
 const connection = new CoreConnection();
 const stateDisplay = new StateDisplay();
 const dialAction = new DialAction(connection, stateDisplay);
-dialAction.manifestId = "com.apricadabra.dial";
+dialAction.manifestId = "com.apricadabra.streamdeck.dial";
 
 const buttonAction = new ButtonAction(connection);
-buttonAction.manifestId = "com.apricadabra.button";
+buttonAction.manifestId = "com.apricadabra.streamdeck.button";
 
 const resetAction = new ResetAxisAction(connection);
-resetAction.manifestId = "com.apricadabra.reset";
+resetAction.manifestId = "com.apricadabra.streamdeck.reset";
 
 connection.onStateUpdate = (axes, buttons) => {
     const changedAxes = stateDisplay.getChangedAxes(axes);
