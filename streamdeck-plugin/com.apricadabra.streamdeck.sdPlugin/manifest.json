@@ -19,7 +19,7 @@
       "UUID": "com.apricadabra.streamdeck.dial",
       "Name": "vJoy Dial",
       "Tooltip": "Control a vJoy axis with the encoder dial. Supports Hold, Spring, and Detent modes.",
-      "Icon": "imgs/dial-action",
+      "Icon": "imgs/dial-icon",
       "Controllers": ["Encoder"],
       "States": [{ "Image": "imgs/dial-icon" }],
       "Encoder": {
@@ -36,7 +36,7 @@
       "UUID": "com.apricadabra.streamdeck.button",
       "Name": "vJoy Button",
       "Tooltip": "Fire a vJoy button press. Supports Momentary, Toggle, Pulse, Double, Rapid Fire, and Long/Short modes.",
-      "Icon": "imgs/button-action",
+      "Icon": "imgs/button-icon",
       "Controllers": ["Keypad"],
       "States": [{ "Image": "imgs/button-icon" }],
       "PropertyInspectorPath": "pi/button.html"
@@ -45,7 +45,7 @@
       "UUID": "com.apricadabra.streamdeck.reset",
       "Name": "vJoy Reset Axis",
       "Tooltip": "Reset a vJoy axis to a specific position (e.g. center at 50%).",
-      "Icon": "imgs/reset-action",
+      "Icon": "imgs/reset-icon",
       "Controllers": ["Keypad", "Encoder"],
       "States": [{ "Image": "imgs/reset-icon" }],
       "Encoder": {
