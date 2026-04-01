@@ -77,6 +77,7 @@ impl Server {
         let accept_server_broadcast_tx = server_broadcast_tx.clone();
         let accept_upgrade_tx = upgrade_tx.clone();
         let pipe_name = self.config.pipe_name.clone();
+        let mut accept_shutdown_rx = shutdown_rx.clone();
 
         tokio::spawn(async move {
             loop {
@@ -92,9 +93,20 @@ impl Server {
                     }
                 };
 
-                if let Err(e) = pipe.connect().await {
-                    error!("Pipe connect error: {e}");
-                    continue;
+                // Race between accepting a connection and shutdown signal
+                tokio::select! {
+                    result = pipe.connect() => {
+                        if let Err(e) = result {
+                            error!("Pipe connect error: {e}");
+                            continue;
+                        }
+                    }
+                    _ = accept_shutdown_rx.changed() => {
+                        if *accept_shutdown_rx.borrow() {
+                            info!("Pipe accept loop shutting down");
+                            break;
+                        }
+                    }
                 }
 
                 client_counter += 1;
