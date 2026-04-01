@@ -191,8 +191,22 @@ namespace Apricadabra.Client
 
         // --- Connection ---
 
+        private void Cleanup()
+        {
+            _cts?.Cancel();
+            _udpSender?.Dispose();
+            _udpSender = null;
+            _pipe?.Dispose();
+            _pipe = null;
+            _reader?.Dispose();
+            _reader = null;
+            _writer?.Dispose();
+            _writer = null;
+        }
+
         public async Task ConnectAsync(CancellationToken ct = default)
         {
+            Cleanup();
             _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             int delay = 100;
 
@@ -347,6 +361,7 @@ namespace Apricadabra.Client
         private void HandleDisconnect()
         {
             _connected = false;
+            Cleanup();
             OnDisconnected?.Invoke();
             _ = Task.Run(async () =>
             {
@@ -357,11 +372,7 @@ namespace Apricadabra.Client
 
         public void Dispose()
         {
-            _cts?.Cancel();
-            _udpSender?.Dispose();
-            _pipe?.Dispose();
-            _reader?.Dispose();
-            _writer?.Dispose();
+            Cleanup();
         }
     }
 }
