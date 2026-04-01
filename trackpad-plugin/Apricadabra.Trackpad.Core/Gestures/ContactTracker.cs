@@ -26,6 +26,7 @@ namespace Apricadabra.Trackpad.Core.Gestures
         private Dictionary<int, ContactPoint> _previousContacts = new();
         private float _previousSpread;
         private float _previousAngle;
+        private bool _spreadInitialized;
         private float _cumulativeDistance;
         private float _cumulativeDeltaX;
         private float _cumulativeDeltaY;
@@ -96,20 +97,32 @@ namespace Apricadabra.Trackpad.Core.Gestures
             if (onSurface.Length >= 2)
             {
                 float spread = ComputeSpread(onSurface);
-                state.SpreadDelta = spread - _previousSpread;
-                _previousSpread = spread;
-
-                // Rotation angle between first two contacts
                 float angle = MathF.Atan2(
                     onSurface[1].Y - onSurface[0].Y,
                     onSurface[1].X - onSurface[0].X);
-                state.RotationDelta = AngleDelta(_previousAngle, angle);
-                _previousAngle = angle;
+
+                if (!_spreadInitialized)
+                {
+                    // First multi-contact frame: seed previous values, emit zero deltas
+                    _previousSpread = spread;
+                    _previousAngle = angle;
+                    _spreadInitialized = true;
+                    state.SpreadDelta = 0;
+                    state.RotationDelta = 0;
+                }
+                else
+                {
+                    state.SpreadDelta = spread - _previousSpread;
+                    _previousSpread = spread;
+                    state.RotationDelta = AngleDelta(_previousAngle, angle);
+                    _previousAngle = angle;
+                }
             }
             else
             {
                 _previousSpread = 0;
                 _previousAngle = 0;
+                _spreadInitialized = false;
             }
 
             // Store current contacts for next frame
@@ -128,6 +141,7 @@ namespace Apricadabra.Trackpad.Core.Gestures
             _cumulativeDistance = 0;
             _cumulativeDeltaX = 0;
             _cumulativeDeltaY = 0;
+            _spreadInitialized = false;
             _hasGesture = false;
         }
 
