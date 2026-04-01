@@ -37,7 +37,7 @@ namespace Apricadabra.Trackpad.Core.Gestures
 
         public void Update(ContactFrame frame)
         {
-            var onSurface = frame.Contacts.Where(c => c.OnSurface).ToArray();
+            var onSurface = frame.Contacts.Where(c => c.OnSurface).OrderBy(c => c.Id).ToArray();
             var state = new TrackerState
             {
                 FingerCount = onSurface.Length,
