@@ -20,13 +20,10 @@ namespace Apricadabra.Trackpad.Core.Bindings
 
         public void ProcessGesture(GestureEvent gesture)
         {
-            var dirString = DirectionToString(gesture.Direction);
-            var typeString = TypeToString(gesture.Type);
-
             var matches = _config.Bindings.Where(b =>
-                b.GestureType == typeString &&
+                ParseGestureType(b.GestureType) == gesture.Type &&
                 b.GestureFingers == gesture.Fingers &&
-                b.GestureDirection == dirString).ToList();
+                ParseDirection(b.GestureDirection) == gesture.Direction).ToList();
 
             foreach (var binding in matches)
             {
@@ -88,27 +85,28 @@ namespace Apricadabra.Trackpad.Core.Bindings
             }
         }
 
-        private static string DirectionToString(GestureDirection dir) => dir switch
+        private static GestureType? ParseGestureType(string s) => s switch
         {
-            GestureDirection.Up => "up",
-            GestureDirection.Down => "down",
-            GestureDirection.Left => "left",
-            GestureDirection.Right => "right",
-            GestureDirection.In => "in",
-            GestureDirection.Out => "out",
-            GestureDirection.Clockwise => "clockwise",
-            GestureDirection.CounterClockwise => "counterclockwise",
-            _ => "none"
+            "scroll" => GestureType.Scroll,
+            "pinch" => GestureType.Pinch,
+            "rotate" => GestureType.Rotate,
+            "swipe" => GestureType.Swipe,
+            "tap" => GestureType.Tap,
+            _ => null
         };
 
-        private static string TypeToString(GestureType type) => type switch
+        private static GestureDirection? ParseDirection(string s) => s switch
         {
-            GestureType.Scroll => "scroll",
-            GestureType.Pinch => "pinch",
-            GestureType.Rotate => "rotate",
-            GestureType.Swipe => "swipe",
-            GestureType.Tap => "tap",
-            _ => "unknown"
+            "up" => GestureDirection.Up,
+            "down" => GestureDirection.Down,
+            "left" => GestureDirection.Left,
+            "right" => GestureDirection.Right,
+            "in" => GestureDirection.In,
+            "out" => GestureDirection.Out,
+            "clockwise" => GestureDirection.Clockwise,
+            "counterclockwise" => GestureDirection.CounterClockwise,
+            "none" => GestureDirection.None,
+            _ => null
         };
     }
 }
