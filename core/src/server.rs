@@ -212,13 +212,12 @@ impl Server {
                     if let Ok((len, _addr)) = result {
                         if let Ok(text) = std::str::from_utf8(&cmd_buf[..len]) {
                             let trimmed = text.trim();
-                            // Check for shutdown command
-                            if trimmed.contains("\"shutdown\"") {
-                                info!("Received shutdown command via UDP");
-                                let _ = joystick.lock().await.release();
-                                break;
-                            }
                             match serde_json::from_str::<ClientMessage>(trimmed) {
+                                Ok(ClientMessage::Shutdown) => {
+                                    info!("Received shutdown command via UDP");
+                                    let _ = joystick.lock().await.release();
+                                    break;
+                                }
                                 Ok(msg) => {
                                     Self::process_command(&self.config, &axis_mgr, &button_mgr, msg).await;
                                 }
@@ -344,7 +343,7 @@ impl Server {
                 info!("Reset axis {axis} to position {position}");
                 axis_mgr.lock().await.reset(axis, position);
             }
-            ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck | ClientMessage::CoreUpgrade { .. } => {}
+            ClientMessage::Hello { .. } | ClientMessage::HeartbeatAck | ClientMessage::CoreUpgrade { .. } | ClientMessage::Shutdown => {}
         }
     }
 

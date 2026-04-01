@@ -44,6 +44,7 @@ pub enum ClientMessage {
         axis: u8,
         position: f32,
     },
+    Shutdown,
     HeartbeatAck,
     CoreUpgrade {
         #[serde(rename = "newVersion")]
