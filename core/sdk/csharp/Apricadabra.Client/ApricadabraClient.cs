@@ -30,7 +30,7 @@ namespace Apricadabra.Client
         private StreamWriter _writer;
         private UdpClient _udpSender;
         private CancellationTokenSource _cts;
-        private bool _connected;
+        private volatile bool _connected;
 
         public event Action<Dictionary<int, float>, Dictionary<int, bool>> OnStateUpdate;
         public event Action<string, Dictionary<string, ApiStatus>> OnConnected;
