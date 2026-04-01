@@ -18,6 +18,7 @@ const PROTOCOL_VERSION: u32 = 2;
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(30);
 const TICK_INTERVAL: Duration = Duration::from_millis(16); // ~60Hz
+const MAX_MESSAGE_LEN: usize = 65536; // 64KB max pipe message
 
 // UDP ports: core listens for commands, sends broadcasts
 const UDP_COMMAND_PORT: u16 = 19871;
@@ -377,7 +378,12 @@ impl Server {
         line.clear();
         match reader.read_line(&mut line).await {
             Ok(0) | Err(_) => return,
-            Ok(_) => {}
+            Ok(_) => {
+                if line.len() > MAX_MESSAGE_LEN {
+                    warn!("Client {client_id} sent oversized hello ({} bytes), disconnecting", line.len());
+                    return;
+                }
+            }
         }
 
         let hello: ClientMessage = match serde_json::from_str(line.trim()) {
@@ -452,6 +458,10 @@ impl Server {
                     match result {
                         Ok(0) | Err(_) => break,
                         Ok(_) => {
+                            if line.len() > MAX_MESSAGE_LEN {
+                                warn!("Client {client_id} sent oversized message ({} bytes), disconnecting", line.len());
+                                break;
+                            }
                             if let Ok(msg) = serde_json::from_str::<ClientMessage>(line.trim()) {
                                 match msg {
                                     ClientMessage::HeartbeatAck => {
