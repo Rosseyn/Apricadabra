@@ -40,8 +40,7 @@ impl ButtonManager {
 
     pub fn get_all(&self) -> HashMap<u8, bool> {
         (1..=MAX_BUTTONS as u8)
-            .filter(|&id| self.states[id as usize - 1])
-            .map(|id| (id, true))
+            .map(|id| (id, self.states[id as usize - 1]))
             .collect()
     }
 
