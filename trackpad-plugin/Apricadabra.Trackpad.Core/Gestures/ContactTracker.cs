@@ -12,6 +12,8 @@ namespace Apricadabra.Trackpad.Core.Gestures
         public float CenterDeltaY { get; set; }
         public float SpreadDelta { get; set; }
         public float RotationDelta { get; set; }
+        public float CumulativeDeltaX { get; set; }
+        public float CumulativeDeltaY { get; set; }
         public float CumulativeDistance { get; set; }
         public float Velocity { get; set; }
         public bool AllFingersLifted { get; set; }
@@ -25,6 +27,8 @@ namespace Apricadabra.Trackpad.Core.Gestures
         private float _previousSpread;
         private float _previousAngle;
         private float _cumulativeDistance;
+        private float _cumulativeDeltaX;
+        private float _cumulativeDeltaY;
         private DateTime _gestureStartTime;
         private bool _hasGesture;
 
@@ -42,6 +46,8 @@ namespace Apricadabra.Trackpad.Core.Gestures
             if (onSurface.Length == 0)
             {
                 state.AllFingersLifted = _hasGesture;
+                state.CumulativeDeltaX = _cumulativeDeltaX;
+                state.CumulativeDeltaY = _cumulativeDeltaY;
                 state.CumulativeDistance = _cumulativeDistance;
                 state.GestureStartTime = _gestureStartTime;
                 CurrentState = state;
@@ -72,10 +78,14 @@ namespace Apricadabra.Trackpad.Core.Gestures
                 }
             }
 
-            // Cumulative distance
+            // Cumulative distance and displacement
             float frameDist = MathF.Sqrt(state.CenterDeltaX * state.CenterDeltaX + state.CenterDeltaY * state.CenterDeltaY);
             _cumulativeDistance += frameDist;
+            _cumulativeDeltaX += state.CenterDeltaX;
+            _cumulativeDeltaY += state.CenterDeltaY;
             state.CumulativeDistance = _cumulativeDistance;
+            state.CumulativeDeltaX = _cumulativeDeltaX;
+            state.CumulativeDeltaY = _cumulativeDeltaY;
             state.GestureStartTime = _gestureStartTime;
 
             // Velocity
@@ -116,6 +126,8 @@ namespace Apricadabra.Trackpad.Core.Gestures
             _previousSpread = 0;
             _previousAngle = 0;
             _cumulativeDistance = 0;
+            _cumulativeDeltaX = 0;
+            _cumulativeDeltaY = 0;
             _hasGesture = false;
         }
 

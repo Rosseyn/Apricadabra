@@ -164,8 +164,8 @@ namespace Apricadabra.Trackpad.Core.Gestures
 
         private static GestureDirection GetCardinalDirection(TrackerState state)
         {
-            // Use cumulative center delta direction
-            return GetLinearDirection(state.CenterDeltaX, state.CenterDeltaY);
+            // Use cumulative displacement to determine swipe direction (not last-frame delta)
+            return GetLinearDirection(state.CumulativeDeltaX, state.CumulativeDeltaY);
         }
     }
 }
