@@ -48,8 +48,8 @@ bump_streamdeck() {
     # package.json
     cd "$ROOT/streamdeck-plugin"
     sed -i "s/\"version\": \".*\"/\"version\": \"$v\"/" package.json
-    # manifest.json (needs .0 suffix for 4-part version)
-    sed -i "s/\"Version\": \".*\"/\"Version\": \"$v.0\"/" com.apricadabra.streamdeck.sdPlugin/manifest.json
+    # manifest.json top-level Version only (not Nodejs.Version or Software.MinimumVersion)
+    sed -i "0,/\"Version\": \".*\"/{s/\"Version\": \".*\"/\"Version\": \"$v.0\"/}" com.apricadabra.streamdeck.sdPlugin/manifest.json
     git add package.json com.apricadabra.streamdeck.sdPlugin/manifest.json
     cd "$ROOT"
 }
