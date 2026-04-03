@@ -23,7 +23,7 @@
       "Controllers": ["Encoder"],
       "States": [{ "Image": "imgs/dial-icon" }],
       "Encoder": {
-        "layout": "$B1",
+        "layout": "layouts/axis-telemetry.json",
         "TriggerDescription": {
           "Rotate": "Adjust axis",
           "Push": "Fire button",

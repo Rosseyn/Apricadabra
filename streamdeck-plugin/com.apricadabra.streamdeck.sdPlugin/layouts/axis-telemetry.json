@@ -1,0 +1,36 @@
+{
+    "$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+    "id": "axis-telemetry",
+    "items": [
+        {
+            "key": "title",
+            "type": "text",
+            "rect": [4, 4, 96, 16],
+            "alignment": "left",
+            "font": { "size": 9, "weight": 600 },
+            "color": "#888888"
+        },
+        {
+            "key": "value",
+            "type": "text",
+            "rect": [104, 4, 92, 16],
+            "alignment": "right",
+            "font": { "size": 14, "weight": 900 },
+            "color": "#00F0FF"
+        },
+        {
+            "key": "warning",
+            "type": "text",
+            "rect": [104, 22, 92, 12],
+            "alignment": "right",
+            "font": { "size": 9, "weight": 700 },
+            "color": "#F3E600",
+            "enabled": false
+        },
+        {
+            "key": "bar",
+            "type": "pixmap",
+            "rect": [8, 78, 184, 16]
+        }
+    ]
+}

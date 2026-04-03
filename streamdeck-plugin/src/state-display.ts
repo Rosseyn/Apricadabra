@@ -10,6 +10,10 @@ export class StateDisplay {
         return this.buttons.get(id) ?? false;
     }
 
+    getAxisValue(id: number): number {
+        return this.getAxis(id);
+    }
+
     getAxisPercent(id: number): number {
         return Math.round(this.getAxis(id) * 100);
     }

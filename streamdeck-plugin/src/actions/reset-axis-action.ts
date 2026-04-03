@@ -9,7 +9,7 @@ interface ResetSettings {
 }
 
 export class ResetAxisAction extends SingletonAction<ResetSettings> {
-    private connection: CoreConnection;
+    private core: CoreConnection;
 
     constructor(connection: CoreConnection) {
         super();

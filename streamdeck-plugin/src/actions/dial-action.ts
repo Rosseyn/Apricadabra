@@ -2,6 +2,7 @@ import type { JsonValue } from "@elgato/utils";
 import { SingletonAction, DialRotateEvent, DialDownEvent, WillAppearEvent, WillDisappearEvent, DidReceiveSettingsEvent, Action } from "@elgato/streamdeck";
 import { CoreConnection } from "../core-connection";
 import { StateDisplay } from "../state-display";
+import { renderHoldBar, renderSpringBar, renderDetentBar, type BarRenderResult } from "../axis-bar-renderer";
 
 const AXIS_NAMES: Record<string, string> = {
     "1": "X", "2": "Y", "3": "Z", "4": "Rx",
@@ -20,9 +21,10 @@ interface DialSettings {
 }
 
 export class DialAction extends SingletonAction<DialSettings> {
-    private connection: CoreConnection;
+    private core: CoreConnection;
     private stateDisplay: StateDisplay;
     private settingsCache = new Map<string, DialSettings>();
+    private layoutSet = new Set<string>();
 
     constructor(connection: CoreConnection, stateDisplay: StateDisplay) {
         super();
@@ -74,28 +76,64 @@ export class DialAction extends SingletonAction<DialSettings> {
 
     override onWillAppear(ev: WillAppearEvent<DialSettings>): void {
         this.settingsCache.set(ev.action.id, ev.payload.settings);
+        this.setCustomLayout(ev.action);
         this.updateFeedback(ev.action, ev.payload.settings);
     }
 
     override onWillDisappear(ev: WillDisappearEvent<DialSettings>): void {
         this.settingsCache.delete(ev.action.id);
+        this.layoutSet.delete(ev.action.id);
     }
 
     override onDidReceiveSettings(ev: DidReceiveSettingsEvent<DialSettings>): void {
         this.settingsCache.set(ev.action.id, ev.payload.settings);
+        this.setCustomLayout(ev.action);
         this.updateFeedback(ev.action, ev.payload.settings);
+    }
+
+    private setCustomLayout(action: Action<DialSettings>): void {
+        if (this.layoutSet.has(action.id)) return;
+        if (!action.isDial()) return;
+        try {
+            action.setFeedbackLayout("layouts/axis-telemetry.json");
+            this.layoutSet.add(action.id);
+        } catch { /* layout may not be supported on this device */ }
     }
 
     updateFeedback(action: Action<DialSettings>, settings: DialSettings): void {
         if (!settings.axis || !action.isDial()) return;
         const axisId = Number(settings.axis);
-        const percent = this.stateDisplay.getAxisPercent(axisId);
+        const value = this.stateDisplay.getAxisValue(axisId);
         const name = AXIS_NAMES[settings.axis] || `Axis ${settings.axis}`;
-        action.setFeedback({
-            title: name,
-            value: `${percent}%`,
-            indicator: percent,
-        });
+        const mode = settings.mode || "hold";
+        const steps = settings.steps || 5;
+
+        let result: BarRenderResult;
+        switch (mode) {
+            case "spring":
+                result = renderSpringBar(value, name);
+                break;
+            case "detent":
+                result = renderDetentBar(value, steps, name);
+                break;
+            default:
+                result = renderHoldBar(value, name);
+                break;
+        }
+
+        const feedback: Record<string, unknown> = {
+            title: result.titleText,
+            value: { value: result.valueText, color: result.valueColor },
+            bar: result.svg,
+        };
+
+        if (result.warningText) {
+            feedback.warning = { value: result.warningText, color: result.warningColor, enabled: true };
+        } else {
+            feedback.warning = { value: "", enabled: false };
+        }
+
+        action.setFeedback(feedback);
     }
 
     updateFeedbackForAxes(changedAxes: number[]): void {

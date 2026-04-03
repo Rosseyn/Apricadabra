@@ -14,7 +14,7 @@ interface ButtonSettings {
 }
 
 export class ButtonAction extends SingletonAction<ButtonSettings> {
-    private connection: CoreConnection;
+    private core: CoreConnection;
 
     constructor(connection: CoreConnection) {
         super();
