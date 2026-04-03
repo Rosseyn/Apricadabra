@@ -15,3 +15,11 @@ Backlog of work items. All tasks should live here and be cloned from the base wo
 - [ ] **Stream Deck plugin: fix `this.core` vs `this.connection` field name** — ButtonAction constructor assigns to `this.core` but field is declared as `connection`. Likely runtime error. Audit all action files for consistency.
 
 - [ ] **Extract npm package for TypeScript client** — Extract `streamdeck-plugin/src/core-connection.ts` into `@apricadabra/client` npm package, similar to the C# SDK extraction.
+
+- [ ] **Implement Stitch-style axis telemetry bars** — Dynamic segmented bar renderer for axis feedback on Stream Deck encoder LCD and Loupedeck LCD. Three modes:
+  - **Hold**: Grey→cyan intensity gradient (grey below ~35%, transitioning through desaturated cyan to full cyan). 90%+ segments hard-cut to warning yellow (no green blending). MAX label appears left of axis name.
+  - **Spring**: Bipolar center-balanced. Grey near center, intensifying to bright yellow at offset extremes. 90%+ offset segments shift to red warning hue. Center marker always visible.
+  - **Detent**: Greyscale discrete steps. Active step bright white with glow, inactive dark grey.
+  - All modes: shade = value (colorblind-safe by default). Optional per-action colorblind mode dropdown (Default/Deuteranopia/Protanopia/Monochrome) swaps hue ramp, keeps shade gradient.
+  - Render as SVG/PNG for Stream Deck `setFeedback` and Loupedeck `BitmapImage`.
+  - Design reference: `.superpowers/brainstorm/248167-1775244604/content/axis-bars-v3.html`
