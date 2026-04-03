@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <PackageId>Apricadabra.Client</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Description>C# client library for connecting to the Apricadabra core</Description>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
