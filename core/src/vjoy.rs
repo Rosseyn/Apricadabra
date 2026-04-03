@@ -217,6 +217,30 @@ impl VirtualJoystick for VJoyBackend {
             if acquire(self.device_id) == 0 {
                 anyhow::bail!("Failed to acquire vJoy device {}", device_id);
             }
+
+            // Log device capabilities
+            if let Ok(get_btn_n) = self.lib.get::<unsafe extern "C" fn(u32) -> i32>(b"GetVJDButtonNumber") {
+                let n = get_btn_n(self.device_id);
+                tracing::info!("vJoy device {}: {} buttons configured", device_id, n);
+                if n < 128 {
+                    tracing::warn!(
+                        "vJoy device {} has only {} buttons — buttons {}-128 will not work. \
+                         Open 'Configure vJoy' and increase the button count to 128.",
+                        device_id, n, n + 1
+                    );
+                }
+            }
+            if let Ok(get_axis) = self.lib.get::<unsafe extern "C" fn(u32, u32) -> i32>(b"GetVJDAxisExist") {
+                let axes: Vec<&str> = [
+                    (HID_USAGE_X, "X"), (HID_USAGE_Y, "Y"), (HID_USAGE_Z, "Z"),
+                    (HID_USAGE_RX, "Rx"), (HID_USAGE_RY, "Ry"), (HID_USAGE_RZ, "Rz"),
+                    (HID_USAGE_SL0, "Slider1"), (HID_USAGE_SL1, "Slider2"),
+                ].iter()
+                    .filter(|(usage, _)| get_axis(self.device_id, *usage) != 0)
+                    .map(|(_, name)| *name)
+                    .collect();
+                tracing::info!("vJoy device {}: axes enabled: {}", device_id, axes.join(", "));
+            }
         }
         Ok(())
     }
