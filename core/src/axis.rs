@@ -4,7 +4,7 @@ use std::time::Instant;
 const NUM_AXES: usize = 8;
 const CENTER: f32 = 0.5;
 const DISCONNECT_DECAY_FACTOR: f32 = 0.995; // ~30 seconds to center at 60Hz
-const SPRING_DEBOUNCE_MS: u128 = 500;
+const SPRING_DEBOUNCE_MS: u128 = 1000;
 
 pub struct AxisManager {
     values: [f32; NUM_AXES],

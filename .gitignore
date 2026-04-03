@@ -54,3 +54,14 @@ Thumbs.db
 *.mov
 *.wmv
 
+
+# .NET build artifacts
+bin/
+obj/
+*.nupkg
+
+# Cargo lock for libraries (keep for binary crates)
+# core/Cargo.lock is tracked
+
+# Local settings
+.claude/settings.local.json

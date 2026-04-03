@@ -1,154 +1,83 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+<head lang="en">
     <meta charset="utf-8" />
-    <title>vJoy Dial</title>
-    <link rel="stylesheet" href="https://sdpi-components.dev/css/sdpi.css" />
+    <script src="sdpi-components.js"></script>
 </head>
 <body>
-    <div class="sdpi-wrapper">
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Axis</div>
-            <select class="sdpi-item-value" id="axis">
-                <option value="">-- Select --</option>
-                <option value="1">X</option>
-                <option value="2">Y</option>
-                <option value="3">Z</option>
-                <option value="4">Rx</option>
-                <option value="5">Ry</option>
-                <option value="6">Rz</option>
-                <option value="7">Slider 1</option>
-                <option value="8">Slider 2</option>
-            </select>
-        </div>
+    <sdpi-item label="Axis">
+        <sdpi-select setting="axis">
+            <option value="">-- Select --</option>
+            <option value="1">X</option>
+            <option value="2">Y</option>
+            <option value="3">Z</option>
+            <option value="4">Rx</option>
+            <option value="5">Ry</option>
+            <option value="6">Rz</option>
+            <option value="7">Slider 1</option>
+            <option value="8">Slider 2</option>
+        </sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Mode</div>
-            <select class="sdpi-item-value" id="mode">
-                <option value="hold">Hold</option>
-                <option value="spring">Spring</option>
-                <option value="detent">Detent</option>
-            </select>
-        </div>
+    <sdpi-item label="Mode">
+        <sdpi-select setting="mode" id="mode">
+            <option value="hold">Hold</option>
+            <option value="spring">Spring</option>
+            <option value="detent">Detent</option>
+        </sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Sensitivity</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="sensitivity" min="1" max="100" value="20" />
-                <span id="sensitivityLabel">20</span>
-            </div>
-        </div>
+    <sdpi-item label="Sensitivity">
+        <sdpi-range setting="sensitivity" min="1" max="100" default="20"></sdpi-range>
+    </sdpi-item>
 
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Invert</div>
-            <input class="sdpi-item-value" type="checkbox" id="invert" />
-        </div>
+    <sdpi-item label="Invert">
+        <sdpi-checkbox setting="invert"></sdpi-checkbox>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="decayRateGroup" style="display:none">
-            <div class="sdpi-item-label">Decay Rate</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="decayRate" min="1" max="99" value="95" />
-                <span id="decayRateLabel">95</span>
-            </div>
-        </div>
+    <sdpi-item label="Decay Rate" id="decayRateGroup" style="display:none">
+        <sdpi-range setting="decayRate" min="1" max="99" default="95"></sdpi-range>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="stepsGroup" style="display:none">
-            <div class="sdpi-item-label">Steps</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="steps" min="2" max="20" value="5" />
-                <span id="stepsLabel">5</span>
-            </div>
-        </div>
+    <sdpi-item label="Steps" id="stepsGroup" style="display:none">
+        <sdpi-range setting="steps" min="2" max="20" default="5"></sdpi-range>
+    </sdpi-item>
 
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Encoder Press</div>
-            <select class="sdpi-item-value" id="encoderButton">
-                <option value="none">None</option>
-            </select>
-        </div>
-    </div>
+    <sdpi-item label="Encoder Press">
+        <sdpi-select setting="encoderButton" id="encoderButton">
+            <option value="none">None</option>
+        </sdpi-select>
+    </sdpi-item>
 
     <script>
         // Populate encoder button options
-        const encoderSelect = document.getElementById("encoderButton");
+        const sel = document.getElementById("encoderButton");
         for (let i = 1; i <= 128; i++) {
             const opt = document.createElement("option");
             opt.value = String(i);
             opt.textContent = `Button ${i}`;
-            encoderSelect.appendChild(opt);
+            sel.appendChild(opt);
         }
 
-        let websocket = null;
-        let uuid = null;
-        let actionInfo = null;
+        // Show/hide mode-specific fields
+        const { streamDeckClient } = SDPIComponents;
 
-        function connectElgatoStreamDeckSocket(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
-            uuid = inPropertyInspectorUUID;
-            actionInfo = JSON.parse(inActionInfo);
-
-            websocket = new WebSocket("ws://127.0.0.1:" + inPort);
-            websocket.onopen = function () {
-                websocket.send(JSON.stringify({ event: inRegisterEvent, uuid }));
-                loadSettings(actionInfo.payload.settings || {});
-            };
-            websocket.onmessage = function (evt) {
-                const data = JSON.parse(evt.data);
-                if (data.event === "didReceiveSettings") {
-                    loadSettings(data.payload.settings || {});
-                }
-            };
-        }
-
-        function loadSettings(settings) {
-            document.getElementById("axis").value = settings.axis || "";
-            document.getElementById("mode").value = settings.mode || "hold";
-            document.getElementById("sensitivity").value = settings.sensitivity || 20;
-            document.getElementById("sensitivityLabel").textContent = settings.sensitivity || 20;
-            document.getElementById("invert").checked = !!settings.invert;
-            document.getElementById("decayRate").value = settings.decayRate || 95;
-            document.getElementById("decayRateLabel").textContent = settings.decayRate || 95;
-            document.getElementById("steps").value = settings.steps || 5;
-            document.getElementById("stepsLabel").textContent = settings.steps || 5;
-            document.getElementById("encoderButton").value = settings.encoderButton || "none";
-            updateVisibility();
-        }
-
-        function saveSettings() {
-            const settings = {
-                axis: document.getElementById("axis").value,
-                mode: document.getElementById("mode").value,
-                sensitivity: Number(document.getElementById("sensitivity").value),
-                invert: document.getElementById("invert").checked,
-                decayRate: Number(document.getElementById("decayRate").value),
-                steps: Number(document.getElementById("steps").value),
-                encoderButton: document.getElementById("encoderButton").value,
-            };
-            websocket && websocket.send(JSON.stringify({
-                event: "setSettings",
-                context: uuid,
-                payload: settings,
-            }));
-        }
-
-        function updateVisibility() {
-            const mode = document.getElementById("mode").value;
+        function updateVisibility(settings) {
+            const mode = settings?.mode || "hold";
             document.getElementById("decayRateGroup").style.display = mode === "spring" ? "" : "none";
             document.getElementById("stepsGroup").style.display = mode === "detent" ? "" : "none";
         }
 
-        // Event listeners
-        document.querySelectorAll("select, input").forEach(el => {
-            el.addEventListener("change", () => {
-                updateVisibility();
-                saveSettings();
-            });
-            el.addEventListener("input", () => {
-                if (el.type === "range") {
-                    const label = document.getElementById(el.id + "Label");
-                    if (label) label.textContent = el.value;
-                }
-                saveSettings();
-            });
+        streamDeckClient.didReceiveSettings.subscribe((ev) => {
+            updateVisibility(ev.payload.settings);
+        });
+
+        // Also watch for mode changes
+        document.getElementById("mode")?.addEventListener("change", () => {
+            // Small delay to let sdpi-components sync the setting
+            setTimeout(() => {
+                streamDeckClient.getSettings().then((s) => updateVisibility(s));
+            }, 50);
         });
     </script>
 </body>

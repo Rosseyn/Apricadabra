@@ -5,32 +5,32 @@
         {
             "key": "title",
             "type": "text",
-            "rect": [4, 4, 96, 16],
+            "rect": [4, 4, 96, 28],
             "alignment": "left",
-            "font": { "size": 9, "weight": 600 },
+            "font": { "size": 16, "weight": 600 },
             "color": "#888888"
         },
         {
             "key": "value",
             "type": "text",
-            "rect": [104, 4, 92, 16],
+            "rect": [104, 4, 92, 28],
             "alignment": "right",
-            "font": { "size": 14, "weight": 900 },
+            "font": { "size": 24, "weight": 900 },
             "color": "#00F0FF"
         },
         {
             "key": "warning",
             "type": "text",
-            "rect": [104, 22, 92, 12],
+            "rect": [104, 34, 92, 20],
             "alignment": "right",
-            "font": { "size": 9, "weight": 700 },
+            "font": { "size": 16, "weight": 700 },
             "color": "#F3E600",
             "enabled": false
         },
         {
             "key": "bar",
             "type": "pixmap",
-            "rect": [8, 78, 184, 16]
+            "rect": [8, 76, 184, 18]
         }
     ]
 }

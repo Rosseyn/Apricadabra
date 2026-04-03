@@ -130,34 +130,38 @@ export function renderSpringBar(value: number, axisName: string): BarRenderResul
     const offsetPercent = Math.round((value - 0.5) * 200); // -100 to +100
     const absOffset = Math.abs(value - 0.5) * 2; // 0.0-1.0
     const isWarning = Math.abs(offsetPercent) >= 90;
-    const centerIdx = Math.floor(SEGMENT_COUNT / 2); // 5 for 10 segments
-    const offsetSegments = Math.round(absOffset * (SEGMENT_COUNT / 2));
     const isRight = value > 0.5;
 
+    // 5 segments per side, center marker drawn on top
+    const halfCount = SEGMENT_COUNT / 2; // 5
+    const filledHalf = Math.round(absOffset * halfCount); // 0-5
+
     const segments: string[] = [];
-    const centerX = centerIdx * (SEG_WIDTH + GAP);
 
-    // Draw center marker (thin vertical line)
-    segments.push(`<rect x="${centerX}" y="0" width="2" height="${BAR_HEIGHT}" fill="${SPRING_CENTER_COLOR}"/>`);
-
+    // Draw all 10 segments (0-4 = left side, 5-9 = right side)
     for (let i = 0; i < SEGMENT_COUNT; i++) {
-        if (i === centerIdx) continue; // skip center (drawn as marker)
-        const x = i * (SEG_WIDTH + GAP) + (i >= centerIdx ? 2 + GAP : 0);
+        const x = i * (SEG_WIDTH + GAP);
+        const isLeftSide = i < halfCount;
+        const isRightSide = i >= halfCount;
 
-        const distFromCenter = Math.abs(i - centerIdx);
-        const isOnActiveSide = isRight ? i > centerIdx : i < centerIdx;
-        const isFilledSegment = isOnActiveSide && distFromCenter <= offsetSegments;
+        // Distance from center: left side = halfCount - 1 - i (so idx 4 = dist 0, idx 0 = dist 4)
+        // Right side = i - halfCount (so idx 5 = dist 0, idx 9 = dist 4)
+        const distFromCenter = isLeftSide ? (halfCount - 1 - i) : (i - halfCount);
+        // Segment index from center outward (1-based for ramp lookup)
+        const segFromCenter = distFromCenter + 1; // 1 to 5
 
-        let color: string;
-        if (isFilledSegment) {
-            const rampIdx = Math.min(distFromCenter - 1, SPRING_RAMP.length - 1);
-            // Warning hue on the outermost segment at 90%+
-            if (isWarning && distFromCenter === offsetSegments) {
+        const isOnActiveSide = isRight ? isRightSide : isLeftSide;
+        const isFilled = isOnActiveSide && segFromCenter <= filledHalf;
+
+        if (isFilled) {
+            const rampIdx = Math.min(segFromCenter - 1, SPRING_RAMP.length - 1);
+            let color: string;
+            // Warning hue on outermost filled segment at 90%+
+            if (isWarning && segFromCenter === filledHalf) {
                 color = SPRING_WARNING_COLOR;
             } else {
                 color = SPRING_RAMP[rampIdx];
             }
-            // Full height
             segments.push(`<rect x="${x}" y="0" width="${SEG_WIDTH}" height="${BAR_HEIGHT}" fill="${color}"/>`);
         } else {
             // Empty: thin dim line
@@ -165,6 +169,10 @@ export function renderSpringBar(value: number, axisName: string): BarRenderResul
             segments.push(`<rect x="${x}" y="${emptyY}" width="${SEG_WIDTH}" height="4" fill="${SPRING_EMPTY_COLOR}"/>`);
         }
     }
+
+    // Center marker drawn on top at the boundary between left and right halves
+    const centerX = halfCount * (SEG_WIDTH + GAP) - GAP / 2 - 1;
+    segments.push(`<rect x="${centerX}" y="0" width="2" height="${BAR_HEIGHT}" fill="${SPRING_CENTER_COLOR}"/>`);
 
     const sign = offsetPercent > 0 ? "+" : offsetPercent < 0 ? "" : "";
     return {

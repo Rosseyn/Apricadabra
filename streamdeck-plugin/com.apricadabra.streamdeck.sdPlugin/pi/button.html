@@ -1,153 +1,82 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
+<head lang="en">
     <meta charset="utf-8" />
-    <title>vJoy Button</title>
-    <link rel="stylesheet" href="https://sdpi-components.dev/css/sdpi.css" />
+    <script src="sdpi-components.js"></script>
 </head>
 <body>
-    <div class="sdpi-wrapper">
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Button</div>
-            <select class="sdpi-item-value" id="button">
-                <option value="">-- Select --</option>
-            </select>
-        </div>
+    <sdpi-item label="Button">
+        <sdpi-select setting="button" id="buttonSelect">
+            <option value="">-- Select --</option>
+        </sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item">
-            <div class="sdpi-item-label">Mode</div>
-            <select class="sdpi-item-value" id="mode">
-                <option value="pulse">Pulse</option>
-                <option value="momentary">Momentary</option>
-                <option value="toggle">Toggle</option>
-                <option value="double">Double Press</option>
-                <option value="rapid">Rapid Fire</option>
-                <option value="longshort">Long/Short</option>
-            </select>
-        </div>
+    <sdpi-item label="Mode">
+        <sdpi-select setting="mode" id="mode">
+            <option value="pulse">Pulse</option>
+            <option value="momentary">Momentary</option>
+            <option value="toggle">Toggle</option>
+            <option value="double">Double Press</option>
+            <option value="rapid">Rapid Fire</option>
+            <option value="longshort">Long/Short</option>
+        </sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="delayGroup" style="display:none">
-            <div class="sdpi-item-label">Delay (ms)</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="delay" min="10" max="200" step="5" value="50" />
-                <span id="delayLabel">50</span>
-            </div>
-        </div>
+    <sdpi-item label="Delay (ms)" id="delayGroup" style="display:none">
+        <sdpi-range setting="delay" min="10" max="200" step="5" default="50"></sdpi-range>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="rateGroup" style="display:none">
-            <div class="sdpi-item-label">Rate (ms)</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="rate" min="20" max="500" step="10" value="100" />
-                <span id="rateLabel">100</span>
-            </div>
-        </div>
+    <sdpi-item label="Rate (ms)" id="rateGroup" style="display:none">
+        <sdpi-range setting="rate" min="20" max="500" step="10" default="100"></sdpi-range>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="shortButtonGroup" style="display:none">
-            <div class="sdpi-item-label">Short Press</div>
-            <select class="sdpi-item-value" id="shortButton"></select>
-        </div>
+    <sdpi-item label="Short Press" id="shortButtonGroup" style="display:none">
+        <sdpi-select setting="shortButton" id="shortButton"></sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="longButtonGroup" style="display:none">
-            <div class="sdpi-item-label">Long Press</div>
-            <select class="sdpi-item-value" id="longButton"></select>
-        </div>
+    <sdpi-item label="Long Press" id="longButtonGroup" style="display:none">
+        <sdpi-select setting="longButton" id="longButton"></sdpi-select>
+    </sdpi-item>
 
-        <div class="sdpi-item" id="thresholdGroup" style="display:none">
-            <div class="sdpi-item-label">Threshold (ms)</div>
-            <div class="sdpi-item-value">
-                <input type="range" id="threshold" min="100" max="2000" step="50" value="500" />
-                <span id="thresholdLabel">500</span>
-            </div>
-        </div>
-    </div>
+    <sdpi-item label="Threshold (ms)" id="thresholdGroup" style="display:none">
+        <sdpi-range setting="threshold" min="100" max="2000" step="50" default="500"></sdpi-range>
+    </sdpi-item>
 
     <script>
         // Populate button dropdowns
-        function populateButtons(select) {
+        function populateButtons(sel) {
             for (let i = 1; i <= 128; i++) {
                 const opt = document.createElement("option");
                 opt.value = String(i);
                 opt.textContent = `Button ${i}`;
-                select.appendChild(opt);
+                sel.appendChild(opt);
             }
         }
-        populateButtons(document.getElementById("button"));
+        populateButtons(document.getElementById("buttonSelect"));
         populateButtons(document.getElementById("shortButton"));
         populateButtons(document.getElementById("longButton"));
 
-        let websocket = null;
-        let uuid = null;
+        // Show/hide mode-specific fields
+        const { streamDeckClient } = SDPIComponents;
 
-        function connectElgatoStreamDeckSocket(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
-            uuid = inPropertyInspectorUUID;
-            const actionInfo = JSON.parse(inActionInfo);
-
-            websocket = new WebSocket("ws://127.0.0.1:" + inPort);
-            websocket.onopen = function () {
-                websocket.send(JSON.stringify({ event: inRegisterEvent, uuid }));
-                loadSettings(actionInfo.payload.settings || {});
-            };
-            websocket.onmessage = function (evt) {
-                const data = JSON.parse(evt.data);
-                if (data.event === "didReceiveSettings") {
-                    loadSettings(data.payload.settings || {});
-                }
-            };
-        }
-
-        function loadSettings(settings) {
-            document.getElementById("button").value = settings.button || "";
-            document.getElementById("mode").value = settings.mode || "pulse";
-            document.getElementById("delay").value = settings.delay || 50;
-            document.getElementById("delayLabel").textContent = settings.delay || 50;
-            document.getElementById("rate").value = settings.rate || 100;
-            document.getElementById("rateLabel").textContent = settings.rate || 100;
-            document.getElementById("shortButton").value = settings.shortButton || "1";
-            document.getElementById("longButton").value = settings.longButton || "1";
-            document.getElementById("threshold").value = settings.threshold || 500;
-            document.getElementById("thresholdLabel").textContent = settings.threshold || 500;
-            updateVisibility();
-        }
-
-        function saveSettings() {
-            const settings = {
-                button: document.getElementById("button").value,
-                mode: document.getElementById("mode").value,
-                delay: Number(document.getElementById("delay").value),
-                rate: Number(document.getElementById("rate").value),
-                shortButton: document.getElementById("shortButton").value,
-                longButton: document.getElementById("longButton").value,
-                threshold: Number(document.getElementById("threshold").value),
-            };
-            websocket && websocket.send(JSON.stringify({
-                event: "setSettings",
-                context: uuid,
-                payload: settings,
-            }));
-        }
-
-        function updateVisibility() {
-            const mode = document.getElementById("mode").value;
+        function updateVisibility(settings) {
+            const mode = settings?.mode || "pulse";
             document.getElementById("delayGroup").style.display = mode === "double" ? "" : "none";
             document.getElementById("rateGroup").style.display = mode === "rapid" ? "" : "none";
-            const isLongShort = mode === "longshort";
-            document.getElementById("shortButtonGroup").style.display = isLongShort ? "" : "none";
-            document.getElementById("longButtonGroup").style.display = isLongShort ? "" : "none";
-            document.getElementById("thresholdGroup").style.display = isLongShort ? "" : "none";
+            const isLS = mode === "longshort";
+            document.getElementById("shortButtonGroup").style.display = isLS ? "" : "none";
+            document.getElementById("longButtonGroup").style.display = isLS ? "" : "none";
+            document.getElementById("thresholdGroup").style.display = isLS ? "" : "none";
         }
 
-        document.querySelectorAll("select, input").forEach(el => {
-            el.addEventListener("change", () => {
-                updateVisibility();
-                saveSettings();
-            });
-            el.addEventListener("input", () => {
-                if (el.type === "range") {
-                    const label = document.getElementById(el.id + "Label");
-                    if (label) label.textContent = el.value;
-                }
-                saveSettings();
-            });
+        streamDeckClient.didReceiveSettings.subscribe((ev) => {
+            updateVisibility(ev.payload.settings);
+        });
+
+        document.getElementById("mode")?.addEventListener("change", () => {
+            setTimeout(() => {
+                streamDeckClient.getSettings().then((s) => updateVisibility(s));
+            }, 50);
         });
     </script>
 </body>

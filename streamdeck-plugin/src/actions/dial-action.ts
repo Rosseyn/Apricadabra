@@ -33,34 +33,38 @@ export class DialAction extends SingletonAction<DialSettings> {
     }
 
     override onDialRotate(ev: DialRotateEvent<DialSettings>): void {
-        const { axis, mode, sensitivity, invert, decayRate, steps } = ev.payload.settings;
-        if (!axis || !mode) return;
+        try {
+            const s = ev.payload.settings;
+            if (!s || !s.axis || !s.mode) return;
 
-        let diff = ev.payload.ticks;
-        if (invert) diff = -diff;
+            let diff = ev.payload.ticks;
+            if (s.invert) diff = -diff;
 
-        if (mode === "detent") {
-            diff = Math.sign(diff);
+            if (s.mode === "detent") {
+                diff = Math.sign(diff);
+            }
+
+            const msg: Record<string, unknown> = {
+                type: "axis",
+                axis: Number(s.axis),
+                mode: s.mode,
+                diff,
+            };
+
+            if (s.mode !== "detent") {
+                msg.sensitivity = (s.sensitivity || 20) / 1000;
+            }
+            if (s.mode === "spring") {
+                msg.decayRate = (s.decayRate || 95) / 100;
+            }
+            if (s.mode === "detent") {
+                msg.steps = s.steps || 5;
+            }
+
+            this.core.send(msg);
+        } catch (err) {
+            console.error("[Apricadabra] onDialRotate error:", err);
         }
-
-        const msg: Record<string, unknown> = {
-            type: "axis",
-            axis: Number(axis),
-            mode,
-            diff,
-        };
-
-        if (mode !== "detent") {
-            msg.sensitivity = (sensitivity || 20) / 1000;
-        }
-        if (mode === "spring") {
-            msg.decayRate = (decayRate || 95) / 100;
-        }
-        if (mode === "detent") {
-            msg.steps = steps || 5;
-        }
-
-        this.core.send(msg);
     }
 
     override onDialDown(ev: DialDownEvent<DialSettings>): void {
@@ -121,19 +125,23 @@ export class DialAction extends SingletonAction<DialSettings> {
                 break;
         }
 
-        const feedback: Record<string, unknown> = {
-            title: result.titleText,
-            value: { value: result.valueText, color: result.valueColor },
-            bar: result.svg,
-        };
+        try {
+            const feedback: Record<string, unknown> = {
+                title: result.titleText,
+                value: { value: result.valueText, color: result.valueColor },
+                bar: result.svg,
+            };
 
-        if (result.warningText) {
-            feedback.warning = { value: result.warningText, color: result.warningColor, enabled: true };
-        } else {
-            feedback.warning = { value: "", enabled: false };
+            if (result.warningText) {
+                feedback.warning = { value: result.warningText, color: result.warningColor, enabled: true };
+            } else {
+                feedback.warning = { value: "", enabled: false };
+            }
+
+            action.setFeedback(feedback);
+        } catch (err) {
+            console.error("[Apricadabra] setFeedback error:", err);
         }
-
-        action.setFeedback(feedback);
     }
 
     updateFeedbackForAxes(changedAxes: number[]): void {
