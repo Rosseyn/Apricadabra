@@ -22,6 +22,7 @@
       "Icon": "imgs/dial-icon",
       "Controllers": ["Encoder"],
       "States": [{ "Image": "imgs/dial-icon" }],
+      "UserTitleEnabled": false,
       "Encoder": {
         "layout": "layouts/axis-telemetry.json",
         "TriggerDescription": {

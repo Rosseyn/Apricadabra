@@ -9,10 +9,10 @@
  */
 
 const SEGMENT_COUNT = 10;
-const BAR_WIDTH = 180;
-const BAR_HEIGHT = 14;
+const BAR_WIDTH = 184;
+const BAR_HEIGHT = 18;
 const GAP = 2;
-const SEG_WIDTH = (BAR_WIDTH - GAP * (SEGMENT_COUNT - 1)) / SEGMENT_COUNT;
+const SEG_WIDTH = Math.floor((BAR_WIDTH - GAP * (SEGMENT_COUNT - 1)) / SEGMENT_COUNT);
 
 // ─── Color ramps ──────────────────────────────────────────
 
@@ -72,20 +72,18 @@ function springValueColor(offsetPercent: number): string {
 // ─── SVG Renderers ────────────────────────────────────────
 
 export interface BarRenderResult {
-    svg: string;          // Full SVG as data URI
+    svg: string;          // Bar SVG as data URI
     valueText: string;    // e.g. "72%", "+40%", "3/5"
     valueColor: string;   // hex color for value text
     warningText: string;  // "MAX" or ""
     warningColor: string; // hex color for warning
-    titleText: string;    // axis name
 }
 
 /**
  * Hold mode: unidirectional 0→100%.
  * @param value 0.0-1.0
- * @param axisName e.g. "THROTTLE_X"
  */
-export function renderHoldBar(value: number, axisName: string): BarRenderResult {
+export function renderHoldBar(value: number): BarRenderResult {
     const percent = Math.round(value * 100);
     const filledCount = Math.round(value * SEGMENT_COUNT);
     const isWarning = percent >= 90;
@@ -106,7 +104,7 @@ export function renderHoldBar(value: number, axisName: string): BarRenderResult 
             color = HOLD_EMPTY_COLOR;
         }
 
-        segments.push(`<rect x="${x}" y="0" width="${SEG_WIDTH}" height="${BAR_HEIGHT}" fill="${color}" rx="0"/>`);
+        segments.push(`<rect x="${x}" y="0" width="${SEG_WIDTH}" height="${BAR_HEIGHT}" fill="${color}"/>`);
     }
 
     const svg = buildSvg(segments);
@@ -117,16 +115,14 @@ export function renderHoldBar(value: number, axisName: string): BarRenderResult 
         valueColor: holdValueColor(percent),
         warningText: isWarning ? "MAX" : "",
         warningColor: HOLD_WARNING_COLOR,
-        titleText: axisName,
     };
 }
 
 /**
  * Spring mode: bipolar center-balanced.
  * @param value 0.0-1.0 (0.5 = center)
- * @param axisName e.g. "PITCH_BAL"
  */
-export function renderSpringBar(value: number, axisName: string): BarRenderResult {
+export function renderSpringBar(value: number): BarRenderResult {
     const offsetPercent = Math.round((value - 0.5) * 200); // -100 to +100
     const absOffset = Math.abs(value - 0.5) * 2; // 0.0-1.0
     const isWarning = Math.abs(offsetPercent) >= 90;
@@ -172,7 +168,7 @@ export function renderSpringBar(value: number, axisName: string): BarRenderResul
 
     // Center marker drawn on top at the boundary between left and right halves
     const centerX = halfCount * (SEG_WIDTH + GAP) - GAP / 2 - 1;
-    segments.push(`<rect x="${centerX}" y="0" width="2" height="${BAR_HEIGHT}" fill="${SPRING_CENTER_COLOR}"/>`);
+    segments.push(`<rect x="${Math.round(centerX)}" y="0" width="2" height="${BAR_HEIGHT}" fill="${SPRING_CENTER_COLOR}"/>`);
 
     const sign = offsetPercent > 0 ? "+" : offsetPercent < 0 ? "" : "";
     return {
@@ -181,7 +177,6 @@ export function renderSpringBar(value: number, axisName: string): BarRenderResul
         valueColor: springValueColor(offsetPercent),
         warningText: isWarning ? "MAX" : "",
         warningColor: SPRING_WARNING_COLOR,
-        titleText: axisName,
     };
 }
 
@@ -189,12 +184,11 @@ export function renderSpringBar(value: number, axisName: string): BarRenderResul
  * Detent mode: discrete steps.
  * @param value 0.0-1.0
  * @param steps total number of steps (2-20)
- * @param axisName e.g. "FLAPS"
  */
-export function renderDetentBar(value: number, steps: number, axisName: string): BarRenderResult {
+export function renderDetentBar(value: number, steps: number): BarRenderResult {
     const stepIdx = Math.round(value * (steps - 1)); // 0-based
     const segGap = 4;
-    const segW = (BAR_WIDTH - segGap * (steps - 1)) / steps;
+    const segW = Math.floor((BAR_WIDTH - segGap * (steps - 1)) / steps);
 
     const segments: string[] = [];
     for (let i = 0; i < steps; i++) {
@@ -213,10 +207,9 @@ export function renderDetentBar(value: number, steps: number, axisName: string):
         valueColor: DETENT_ACTIVE,
         warningText: "",
         warningColor: "",
-        titleText: axisName,
     };
 }
 
 function buildSvg(rects: string[], defs = ""): string {
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${BAR_WIDTH} ${BAR_HEIGHT}" width="${BAR_WIDTH}" height="${BAR_HEIGHT}">${defs}${rects.join("")}</svg>`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${BAR_WIDTH} ${BAR_HEIGHT}" width="${BAR_WIDTH}" height="${BAR_HEIGHT}" shape-rendering="crispEdges">${defs}${rects.join("")}</svg>`;
 }

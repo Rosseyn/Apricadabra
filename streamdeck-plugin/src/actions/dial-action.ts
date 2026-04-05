@@ -2,16 +2,12 @@ import type { JsonValue } from "@elgato/utils";
 import { SingletonAction, DialRotateEvent, DialDownEvent, WillAppearEvent, WillDisappearEvent, DidReceiveSettingsEvent, Action } from "@elgato/streamdeck";
 import { CoreConnection } from "../core-connection";
 import { StateDisplay } from "../state-display";
-import { renderHoldBar, renderSpringBar, renderDetentBar, type BarRenderResult } from "../axis-bar-renderer";
-
-const AXIS_NAMES: Record<string, string> = {
-    "1": "X", "2": "Y", "3": "Z", "4": "Rx",
-    "5": "Ry", "6": "Rz", "7": "Slider 1", "8": "Slider 2",
-};
+import { renderHoldBar, renderSpringBar, renderDetentBar } from "../axis-bar-renderer";
 
 interface DialSettings {
     [key: string]: JsonValue;
     axis: string;
+    label: string;
     mode: string;
     sensitivity: number;
     invert: boolean;
@@ -108,26 +104,25 @@ export class DialAction extends SingletonAction<DialSettings> {
         if (!settings.axis || !action.isDial()) return;
         const axisId = Number(settings.axis);
         const value = this.stateDisplay.getAxisValue(axisId);
-        const name = AXIS_NAMES[settings.axis] || `Axis ${settings.axis}`;
         const mode = settings.mode || "hold";
         const steps = settings.steps || 5;
 
-        let result: BarRenderResult;
+        let result;
         switch (mode) {
             case "spring":
-                result = renderSpringBar(value, name);
+                result = renderSpringBar(value);
                 break;
             case "detent":
-                result = renderDetentBar(value, steps, name);
+                result = renderDetentBar(value, steps);
                 break;
             default:
-                result = renderHoldBar(value, name);
+                result = renderHoldBar(value);
                 break;
         }
 
         try {
             const feedback: Record<string, unknown> = {
-                title: result.titleText,
+                label: settings.label || "",
                 value: { value: result.valueText, color: result.valueColor },
                 bar: result.svg,
             };

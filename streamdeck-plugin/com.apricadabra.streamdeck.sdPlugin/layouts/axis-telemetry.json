@@ -3,27 +3,27 @@
     "id": "axis-telemetry",
     "items": [
         {
-            "key": "title",
+            "key": "label",
             "type": "text",
-            "rect": [4, 4, 96, 28],
+            "rect": [4, 4, 144, 28],
             "alignment": "left",
-            "font": { "size": 16, "weight": 600 },
-            "color": "#888888"
+            "font": { "size": 18, "weight": 700 },
+            "color": "#cccccc"
         },
         {
             "key": "value",
             "type": "text",
-            "rect": [104, 4, 92, 28],
+            "rect": [150, 4, 46, 28],
             "alignment": "right",
-            "font": { "size": 24, "weight": 900 },
+            "font": { "size": 20, "weight": 900 },
             "color": "#00F0FF"
         },
         {
             "key": "warning",
             "type": "text",
-            "rect": [104, 34, 92, 20],
+            "rect": [120, 34, 76, 20],
             "alignment": "right",
-            "font": { "size": 16, "weight": 700 },
+            "font": { "size": 14, "weight": 700 },
             "color": "#F3E600",
             "enabled": false
         },
