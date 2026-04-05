@@ -5,7 +5,7 @@
         {
             "key": "label",
             "type": "text",
-            "rect": [4, 4, 144, 28],
+            "rect": [4, 4, 124, 28],
             "alignment": "left",
             "font": { "size": 18, "weight": 700 },
             "color": "#cccccc"
@@ -13,7 +13,7 @@
         {
             "key": "value",
             "type": "text",
-            "rect": [150, 4, 46, 28],
+            "rect": [130, 4, 66, 28],
             "alignment": "right",
             "font": { "size": 20, "weight": 900 },
             "color": "#00F0FF"

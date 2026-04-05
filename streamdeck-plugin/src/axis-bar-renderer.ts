@@ -56,8 +56,8 @@ const DETENT_INACTIVE = "#2a2a2a";
 // ─── Value text color (follows the gradient) ──────────────
 
 function holdValueColor(percent: number): string {
-    if (percent <= 15) return "#8a8a8a";
-    if (percent <= 35) return "#5a9ea8";
+    if (percent <= 15) return "#6a9aa0";
+    if (percent <= 35) return "#5aafb8";
     if (percent <= 60) return "#00d0e0";
     return "#00F0FF";
 }

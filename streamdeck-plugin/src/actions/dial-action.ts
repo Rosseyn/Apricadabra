@@ -31,29 +31,30 @@ export class DialAction extends SingletonAction<DialSettings> {
     override onDialRotate(ev: DialRotateEvent<DialSettings>): void {
         try {
             const s = ev.payload.settings;
-            if (!s || !s.axis || !s.mode) return;
+            if (!s || !s.axis) return;
+            const mode = s.mode || "hold";
 
             let diff = ev.payload.ticks;
             if (s.invert) diff = -diff;
 
-            if (s.mode === "detent") {
+            if (mode === "detent") {
                 diff = Math.sign(diff);
             }
 
             const msg: Record<string, unknown> = {
                 type: "axis",
                 axis: Number(s.axis),
-                mode: s.mode,
+                mode,
                 diff,
             };
 
-            if (s.mode !== "detent") {
+            if (mode !== "detent") {
                 msg.sensitivity = (s.sensitivity || 20) / 1000;
             }
-            if (s.mode === "spring") {
+            if (mode === "spring") {
                 msg.decayRate = (s.decayRate || 95) / 100;
             }
-            if (s.mode === "detent") {
+            if (mode === "detent") {
                 msg.steps = s.steps || 5;
             }
 
