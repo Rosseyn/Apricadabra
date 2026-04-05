@@ -52,7 +52,8 @@ export class DialAction extends SingletonAction<DialSettings> {
                 msg.sensitivity = (s.sensitivity || 20) / 1000;
             }
             if (mode === "spring") {
-                msg.decayRate = (s.decayRate || 95) / 100;
+                const dr = (s.decayRate || 95) / 100;
+                msg.decayRate = 1 - dr * dr;
             }
             if (mode === "detent") {
                 msg.steps = s.steps || 5;

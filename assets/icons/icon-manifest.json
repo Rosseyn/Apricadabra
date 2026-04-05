@@ -1,0 +1,62 @@
+{
+  "description": "Stitch-style icon library for Apricadabra plugins",
+  "source": "Google Material Symbols Outlined + custom SVG variants",
+  "colorable": true,
+  "icons": {
+    "motion_control": [
+      { "id": "speed", "glyph": "speed", "label": "Speed" },
+      { "id": "speed_mid", "glyph": "speed", "label": "Speed (mid)", "mirror": true },
+      { "id": "energy", "glyph": "bolt", "label": "Energy" },
+      { "id": "rocket_launch", "glyph": "rocket_launch", "label": "Rocket Launch" },
+      { "id": "rocket", "glyph": "rocket", "label": "Rocket" },
+      { "id": "joystick", "glyph": "joystick", "label": "Joystick" },
+      { "id": "y_axis", "glyph": "height", "label": "Y-Axis", "rotate": 0 },
+      { "id": "x_axis", "glyph": "height", "label": "X-Axis", "rotate": 90 },
+      { "id": "all_axis", "glyph": "open_with", "label": "All Axis" },
+      { "id": "detent_up", "glyph": "keyboard_capslock", "label": "Detent Up", "rotate": 0 },
+      { "id": "detent_right", "glyph": "keyboard_capslock", "label": "Detent Right", "rotate": 90 },
+      { "id": "detent_down", "glyph": "keyboard_capslock", "label": "Detent Down", "rotate": 180 },
+      { "id": "detent_left", "glyph": "keyboard_capslock", "label": "Detent Left", "rotate": 270 },
+      { "id": "rotate_right", "glyph": "rotate_right", "label": "Rotate Right" },
+      { "id": "rotate_left", "glyph": "rotate_right", "label": "Rotate Left", "mirror": true },
+      { "id": "arrow_up", "glyph": "double_arrow", "label": "Arrow Up", "rotate": 270 },
+      { "id": "arrow_right", "glyph": "double_arrow", "label": "Arrow Right", "rotate": 0 },
+      { "id": "arrow_down", "glyph": "double_arrow", "label": "Arrow Down", "rotate": 90 },
+      { "id": "arrow_left", "glyph": "double_arrow", "label": "Arrow Left", "rotate": 180 }
+    ],
+    "combat_defense": [
+      { "id": "shield", "glyph": "shield", "label": "Shield", "fill": true },
+      { "id": "shield_with_heart", "glyph": "shield_with_heart", "label": "Shield Heart", "fill": true },
+      { "id": "shield_double", "type": "custom_svg", "label": "Shield Double", "note": "outer shield outline with solid filled shield inside" },
+      { "id": "target", "glyph": "target", "label": "Target" },
+      { "id": "ads_click", "glyph": "ads_click", "label": "Ads Click" },
+      { "id": "radar", "glyph": "radar", "label": "Radar" },
+      { "id": "fire", "glyph": "local_fire_department", "label": "Fire", "fill": true },
+      { "id": "dangerous", "glyph": "dangerous", "label": "Dangerous" }
+    ],
+    "gestures_input": [
+      { "id": "touch_app", "glyph": "touch_app", "label": "Tap" },
+      { "id": "back_hand", "glyph": "back_hand", "label": "Hold", "fill": true },
+      { "id": "pan_tool_alt", "glyph": "pan_tool_alt", "label": "Pan" }
+    ],
+    "data_display": [
+      { "id": "split_scene", "glyph": "split_scene", "label": "Split Scene" },
+      { "id": "grid_view", "glyph": "grid_view", "label": "Grid" },
+      { "id": "splitscreen", "glyph": "splitscreen", "label": "Split Screen" },
+      { "id": "radio_checked", "glyph": "radio_button_checked", "label": "Button" },
+      { "id": "monitoring", "glyph": "monitoring", "label": "Monitor", "fill": true },
+      { "id": "analytics", "glyph": "analytics", "label": "Analytics" }
+    ],
+    "system_status": [
+      { "id": "settings", "glyph": "settings", "label": "Settings" },
+      { "id": "warning", "glyph": "warning", "label": "Warning" },
+      { "id": "refresh", "glyph": "refresh", "label": "Reset" },
+      { "id": "settings_input", "glyph": "settings_input_component", "label": "Input Config" },
+      { "id": "account_tree", "glyph": "account_tree", "label": "Tree" },
+      { "id": "notifications", "glyph": "notifications", "label": "Notify" },
+      { "id": "thermostat", "glyph": "thermostat", "label": "Thermostat" },
+      { "id": "fuel", "glyph": "gas_meter", "label": "Fuel" },
+      { "id": "examine", "glyph": "biotech", "label": "Examine" }
+    ]
+  }
+}
