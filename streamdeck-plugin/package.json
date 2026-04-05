@@ -11,7 +11,8 @@
     "deploy": "npm run build && cp -r com.apricadabra.streamdeck.sdPlugin /c/Users/unsab/AppData/Roaming/Elgato/StreamDeck/Plugins/"
   },
   "dependencies": {
-    "@elgato/streamdeck": "^2.0.0"
+    "@elgato/streamdeck": "^2.0.0",
+    "@scfools/hud-icons": "github:Rosseyn/hud-icons"
   },
   "devDependencies": {
     "@types/node": "^20.19.37",
