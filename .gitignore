@@ -65,3 +65,7 @@ obj/
 
 # Local settings
 .claude/settings.local.json
+
+# Scratch
+scrap
+scrap/
