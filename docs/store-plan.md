@@ -189,15 +189,21 @@ generator transforms job-space coordinates into each machine's native frame:
 
 **Doghole-quantized offset (operator-friendly registration):**
 - The laser bed has **dogholes on a fixed grid** (spacing per `MachineProfile`, definable
-  per machine). Rather than demanding an exact −50% offset, the app **snaps the
-  print→laser offset to the nearest whole number of doghole increments**.
-- The operator then just shifts/pins the fixture by *N* dogholes — fast, repeatable, far
-  less manual measuring — and the app accounts for the small snap residual in the laser
-  file so engrave still lands within tolerance over the print.
-- The job sheet states the exact move ("shift +2 dogholes left, +1 up") plus the residual.
-- The validator confirms the doghole-snapped placement keeps the design inside the lens
-  field and within focus/edge-angle tolerance (§6.5); if the active lens is too small for
-  the snapped position, it suggests a **larger lens** (150/300 mm) or re-centering.
+  per machine). Rather than demanding an exact −50% offset, the app suggests shifting the
+  fixture by a **whole number of doghole increments**, computed **independently on X and Y**
+  (the snap residual has separate `dx`/`dy` components, so tolerance is evaluated per-axis,
+  not as a single distance).
+- The operator shifts/pins the fixture by *N* dogholes in X and *M* in Y — fast, repeatable,
+  far less manual measuring — and the app folds the small per-axis residual into the laser
+  file so engrave still lands over the print.
+- **Encouraged, not forced.** The doghole snap is a *suggestion* surfaced through the
+  **editor overlay** (§6.5 indicators): it shows the nearest doghole position, the resulting
+  per-axis residual, and whether that lands in-tolerance — but the operator/user is free to
+  place it elsewhere. Nothing is hard-blocked here.
+- The job sheet states the exact move ("shift +2 dogholes left / +1 up") plus the per-axis
+  residual.
+- The overlay also indicates when the active lens is too small for the chosen position and
+  suggests a **larger lens** (150 / 300 mm) or re-centering — again as guidance, not a gate.
 
 ### 6.4 Unified depth / print-gap limit
 
@@ -223,11 +229,20 @@ work area, both modeled per **selected lens** (70 / 150 / 300 mm field):
   edges; the effect scales with **material thickness**.
 
 For these the engine: (a) **biases placement toward field center** (reconciled with the
-§6.3 doghole offset), (b) **flags/blocks** geometry whose focus-quality or
+§6.3 doghole offset), (b) **warns** (does **not** block) when geometry's focus-quality or
 thickness × off-center angle exceeds tolerance, (c) suggests a **larger lens** when the
 design won't fit the sharp zone of the default 70 mm field, and (d) records expected
 focus/edge-angle and the chosen lens on the **job sheet**. (Software constrains and informs;
 it can't correct the optics.)
+
+**Over-tolerance = warn + omit from output (equipment safety).** Exceeding tolerance is
+never hard-blocked at the UI — the user/operator is warned but may proceed. However, any
+geometry that falls outside the safe/in-tolerance envelope is **omitted from the generated
+machine file** so the machine never attempts a pass that could damage equipment or material
+(e.g. cutting too thick off-center, or firing in a region the lens can't safely reach). The
+job sheet explicitly lists what was **dropped and why**, so the operator can re-run those
+portions with a corrected setup (larger lens, re-center, thinner stock) if desired. Net:
+the warning informs the human; the omission protects the hardware.
 
 ### 6.6 Weeding minimization (post-processing goal)
 
@@ -350,8 +365,13 @@ lazy-loaded.
   shared point.
 - **Omni lenses:** 70 / 150 / 300 mm fields, **70 mm default**; focus is sharpest at center
   and falls off radially (worst in corners) — modeled per lens (§6.5).
-- **Doghole-quantized offset:** print→laser offset snaps to whole doghole increments;
-  spacing is per-`MachineProfile` (§6.3).
+- **Doghole-quantized offset:** print→laser offset snaps to whole doghole increments,
+  computed **per-axis (X and Y independently)**; spacing per-`MachineProfile` (§6.3).
+- **Snap is encouraged, not forced** — surfaced via the editor overlay (residual + in/out
+  of tolerance per axis); the user may place elsewhere. Nothing hard-blocked (§6.3).
+- **Over-tolerance = warn + omit from output.** Never UI-blocked; the offending geometry is
+  **dropped from the generated machine file** (equipment safety) and listed on the job sheet
+  with the reason (§6.5).
 - **`maxReliefDepthMm`:** per-material, with a global default.
 
 ## 15. Open questions
@@ -365,6 +385,6 @@ lazy-loaded.
 - Both machines accept **vector + raster** on import (laser raster only for photo-engrave
   mode, deferred). Still need the exact **container formats/units** each expects (e.g. SVG/
   DXF/AI vs PNG/TIFF, mm units, origin expression) to finalize the output generator.
-- Default **doghole-snap tolerance** (max acceptable residual before the app forces
-  re-centering or a larger lens)?
-- Focus/edge-angle over tolerance: **hard-block**, or **warn + operator override**?
+- Numeric **per-axis tolerance values** (the residual `dx`/`dy` thresholds that flip the
+  overlay from in- to out-of-tolerance, and the focus/edge-angle limits that trigger
+  omission) — behavior is decided (§6.3/§6.5); the actual numbers come from machine testing.
