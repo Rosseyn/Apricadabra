@@ -96,9 +96,15 @@ libs/
   **laser profile** (engrave/shovel/cut params per operation), **print profile** (white
   underbase, passes, Amass3D), `maxReliefDepthMm` (the unified depth/gap limit, §6), notes.
   Backs both the **customer-facing material picker** and the **operator treatment matrix**.
-- **MachineProfile** — per-machine constants: field size, **zero-point definition**, galvo
-  **edge-angle model** (angle vs. distance-from-center), max usable cut thickness; printer
-  **max head-gap**. Used for validation, edge-angle compensation, and output generation.
+- **MachineProfile** — per-machine constants. **Zero-point definition** (eufyMake E1 =
+  **bottom-right**; ComMarker Omni 1 = **center**) and axis directions. For the Omni:
+  **swappable lens set** (FoV **70 / 150 / 300 mm**, default **70**), each lens defining a
+  square field; **radial focus-falloff model** (focus weakens toward the field edge, worst
+  in the **corners** of the rectangular work area). **Doghole grid spacing** (definable
+  per machine — different lasers differ) for incremental, low-handling placement. Plus
+  galvo **edge-angle model**, max usable cut thickness, and the printer **max head-gap**.
+  Used for validation, registration/offset math (§6.3), focus-aware placement, edge-angle
+  compensation, and output generation.
 - **DesignAsset** — uploaded file or chosen template; sanitized, dimensions, color profile;
   **anchored to the standardized zero point**.
 - **DesignJob** — the ordered **operation pipeline** (§6) + chosen Material + computed price
@@ -137,15 +143,41 @@ ordering, registration, depth, and edge-angle rules below.
   **engrave only / print only / both**, and the validator rejects illegal orderings
   (e.g. print → engrave, or cut-after-print on non-thin material) with a clear reason.
 
-### 6.3 Standardized zero point (registration)
+### 6.3 Standardized zero point + cross-machine registration
 
-Both machines rely on **zero-point calibration** for consistency, so:
-- A single **standardized zero point** (origin + axis convention) is defined once in
-  `MachineProfile` and applied to **every** output and **every** template.
-- All **templates** authored for this workflow are built against that same origin.
-- All generated **LightForge** and **eufyMake Studio** files carry the shared origin /
-  registration reference, so a blank placed at the known zero registers identically on the
-  laser and the printer — engrave and print land in alignment without re-aligning by eye.
+The two machines do **not** share the same physical origin, so registration is a defined
+**coordinate transform**, not a single shared point:
+
+- **eufyMake E1 zero = bottom-right** corner of its bed.
+- **ComMarker Omni 1 zero = center** of the active lens field.
+
+The app holds **one canonical job-space origin** (and axis convention) that all
+**templates** and the **DesignJob** geometry are authored against. At output time the
+generator transforms job-space coordinates into each machine's native frame:
+- → **eufyMake Studio** file: referenced from the **bottom-right** origin.
+- → **LightForge** file: referenced from the **center** origin, for the **selected lens
+  field** (70 / 150 / 300 mm).
+
+**Why their natural placements differ — and how we exploit it:**
+- **Printing favors the edge/corner.** The E1 benefits from starting at the corner of its
+  area, so prints anchor near the bottom-right origin.
+- **Engraving favors the center.** The Omni's focus is sharpest at field center and the
+  galvo angle is smallest there, so the laser wants the artwork centered.
+- For a **small** design these are reconcilable with **minimal handling**: print it close
+  to the E1 origin, then move the blank to the laser positioned near the laser origin with
+  roughly a **−50% (center) offset** so the same artwork lands centered in the Omni field.
+
+**Doghole-quantized offset (operator-friendly registration):**
+- The laser bed has **dogholes on a fixed grid** (spacing per `MachineProfile`, definable
+  per machine). Rather than demanding an exact −50% offset, the app **snaps the
+  print→laser offset to the nearest whole number of doghole increments**.
+- The operator then just shifts/pins the fixture by *N* dogholes — fast, repeatable, far
+  less manual measuring — and the app accounts for the small snap residual in the laser
+  file so engrave still lands within tolerance over the print.
+- The job sheet states the exact move ("shift +2 dogholes left, +1 up") plus the residual.
+- The validator confirms the doghole-snapped placement keeps the design inside the lens
+  field and within focus/edge-angle tolerance (§6.5); if the active lens is too small for
+  the snapped position, it suggests a **larger lens** (150/300 mm) or re-centering.
 
 ### 6.4 Unified depth / print-gap limit
 
@@ -158,15 +190,24 @@ Both machines rely on **zero-point calibration** for consistency, so:
 - The validator blocks any pipeline whose engrave depth (where a later print covers it)
   would exceed `maxReliefDepthMm`, and the editor shows remaining depth budget live.
 
-### 6.5 Galvo edge-angle compensation (cuts)
+### 6.5 Galvo focus + edge-angle handling (lens-aware)
 
-- The Omni 1 is a galvo laser: beam incidence angle grows with distance from field center,
-  so cut edges bevel more — and the effect scales with **material thickness**.
-- `MachineProfile` holds an **edge-angle model** (angle vs. distance-from-center). For cut
-  ops the engine: (a) **biases placement toward field center**, (b) **flags/blocks** cut
-  geometry whose thickness × off-center angle exceeds tolerance, and (c) records the
-  expected edge-angle on the **job sheet** for operator awareness. (Software can't correct
-  the optics; it constrains and informs.)
+Two related off-center effects on the Omni, both worst in the **corners** of a rectangular
+work area, both modeled per **selected lens** (70 / 150 / 300 mm field):
+
+- **Radial focus falloff** — focus weakens as the beam approaches the field edge. Placement
+  for **engrave/shovel/cut** is biased toward **center** to keep the design in the sharp
+  zone; the editor shades a focus-quality heat map per lens and warns when geometry
+  (especially fine engraving or thin-material cuts) strays into weak-focus corners.
+- **Edge-angle (bevel)** — incidence angle grows with distance from center, beveling cut
+  edges; the effect scales with **material thickness**.
+
+For these the engine: (a) **biases placement toward field center** (reconciled with the
+§6.3 doghole offset), (b) **flags/blocks** geometry whose focus-quality or
+thickness × off-center angle exceeds tolerance, (c) suggests a **larger lens** when the
+design won't fit the sharp zone of the default 70 mm field, and (d) records expected
+focus/edge-angle and the chosen lens on the **job sheet**. (Software constrains and informs;
+it can't correct the optics.)
 
 ### 6.6 Weeding minimization (post-processing goal)
 
@@ -192,11 +233,12 @@ the artifact generator, not an afterthought.
 3. Add operation steps; each step's input is the previous step's composite. Choose
    **engrave / print / both** (+ optional thin cut). The validator enforces §6.2–6.5.
 4. **Live preview** after each step (client canvas via Konva/Fabric; **server render is
-   authoritative**), with depth-budget and placement (edge-angle) indicators.
+   authoritative**), with depth-budget, lens focus-quality, and doghole-offset indicators.
 5. Price updates per step via the shared `pricing` engine (base + per-op + area + material).
 6. On add-to-cart, persist the **DesignJob spec**. Backend re-renders the authoritative
    preview and queues generation of **LightForge + eufyMake Studio files + a job sheet**
-   (treatment recipe, weeding notes, edge-angle, zero-point reference) for fulfillment.
+   (treatment recipe, weeding notes, chosen lens, focus/edge-angle, doghole move +
+   residual, zero-point references) for **operator import** into each machine's software.
 
 Extensible: new operation types (foil, etc.) plug into the same pipeline; future
 non-decorated goods simply have an empty pipeline.
@@ -279,7 +321,20 @@ lazy-loaded.
 3. Set up Bitbucket Pipelines (or GitHub Actions mirror) → deploy to DO App Platform.
 4. Configure DO App Platform app spec (web/api/worker components + managed DB/Redis).
 
-## 14. Open questions
+## 14. Resolved decisions (locked)
+
+- **Integration point = operator import.** The app outputs files the operator manually
+  imports into LightForge (laser) and eufyMake Studio (printer). No hot-folder/CLI assumed.
+- **Zero points (asymmetric):** eufyMake E1 = **bottom-right**; ComMarker Omni 1 =
+  **center of the active lens field**. Registration is a coordinate transform (§6.3), not a
+  shared point.
+- **Omni lenses:** 70 / 150 / 300 mm fields, **70 mm default**; focus is sharpest at center
+  and falls off radially (worst in corners) — modeled per lens (§6.5).
+- **Doghole-quantized offset:** print→laser offset snaps to whole doghole increments;
+  spacing is per-`MachineProfile` (§6.3).
+- **`maxReliefDepthMm`:** per-material, with a global default.
+
+## 15. Open questions
 
 - Invoicing: Qualpay invoicing API vs internal PDF (default: internal PDF first)?
 - Brand/store name + domain.
@@ -287,11 +342,8 @@ lazy-loaded.
 - Guest checkout vs account-required.
 - Do etch and print ever target *different* base products in one order, or always one
   base per DesignJob (assumed: one base per job, multiple jobs per order).
-- Do LightForge / eufyMake Studio support automated import (file format + hot-folder/CLI),
-  or is operator drag-and-drop the integration point? (Affects how files + job sheet are
-  packaged.) Need the exact LightForge import format(s).
-- Confirm the standardized zero-point convention (which corner/center + axis directions)
-  shared across both machines and all templates.
-- Single global `maxReliefDepthMm`, or per-material? (Plan assumes per-material with a
-  global default.)
-- Galvo edge-angle: hard-block over tolerance, or warn + require operator override?
+- Exact **file formats** LightForge and eufyMake Studio accept on import (vector/raster,
+  units, how origin is expressed) — needed to finalize the output generator.
+- Default **doghole-snap tolerance** (max acceptable residual before the app forces
+  re-centering or a larger lens)?
+- Focus/edge-angle over tolerance: **hard-block**, or **warn + operator override**?
