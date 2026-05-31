@@ -94,7 +94,8 @@ libs/
   troublesome materials from the customer list), `veryThin` flag (gates cut-after-print),
   **surface-energy target** + **required treatment recipe** (steps/params for the operator),
   **laser profile** (engrave/shovel/cut params per operation), **print profile** (white
-  underbase, passes, Amass3D), `maxReliefDepthMm` (the unified depth/gap limit, §6), notes.
+  underbase, passes, Amass3D), `maxReliefDepthMm` (the unified depth/gap limit, §6),
+  `skirtDefault`/`skirtAllowed` (placement-guide outline policy, §6.1a), notes.
   Backs both the **customer-facing material picker** and the **operator treatment matrix**.
 - **MachineProfile** — per-machine constants. **Zero-point definition** (eufyMake E1 =
   **bottom-right**; ComMarker Omni 1 = **center**) and axis directions. For the Omni:
@@ -125,13 +126,32 @@ ordering, registration, depth, and edge-angle rules below.
 
 ### 6.1 Operation types
 
+Both machines accept **vector and raster** on import. (One exception: the laser only uses
+raster for a dedicated **photo-engraving mode** — **stubbed/ignored for now**, to add later.)
+
 - **Laser Engrave** (ComMarker Omni 1 / LightForge) — light surface engrave through
-  moderate **shovel** (depth removal). Params: zone, art (vector preferred), depth/power
+  moderate **shovel** (depth removal). Params: zone, art (vector or raster), depth/power
   profile, grayscale→depth mapping. Depth capped by `maxReliefDepthMm` (§6.4).
 - **Laser Cut** (Omni 1 / LightForge) — cut thin material to shape. Params: cut path,
   thickness (from Material), kerf, tabs. Subject to galvo edge-angle handling (§6.5).
-- **UV Print** (eufyMake E1 / eufyMake Studio) — zone, art (raster/vector), CMYK + **white
-  underbase**, optional **Amass3D** texture/relief. Preview = full-color composite.
+- **UV Print** (eufyMake E1 / eufyMake Studio) — zone, art (vector or raster), CMYK +
+  **white underbase**, optional **Amass3D** texture/relief. Preview = full-color composite.
+
+### 6.1a Skirt / placement-guide outline (optional, default OFF)
+
+A **vector trace around the design** (a "skirt") can be emitted as a registration/placement
+guide — useful when **repeating a job** (for added quantity or after an error) so the piece
+re-seats in exactly the same spot.
+
+- Available for **both** machines (laser scores a light outline; printer lays a thin guide
+  pass), since both benefit from the same re-registration trick.
+- **Optional toggle, defaults to OFF.** It can **mar materials not meant to be cut/offcut
+  in post** (e.g. scoring glass, a guide pass on canvas) — so it must be opt-in per job.
+- Generated as a separate **vector layer** in the output so the operator can run or skip it
+  independently; the job sheet notes whether a skirt is present and that it's a guide, not
+  part of the artwork.
+- Default behavior is configurable per **Material** (a material may force-disable skirt when
+  it can never tolerate one).
 
 ### 6.2 Ordering rules (the engine enforces these)
 
@@ -342,8 +362,9 @@ lazy-loaded.
 - Guest checkout vs account-required.
 - Do etch and print ever target *different* base products in one order, or always one
   base per DesignJob (assumed: one base per job, multiple jobs per order).
-- Exact **file formats** LightForge and eufyMake Studio accept on import (vector/raster,
-  units, how origin is expressed) — needed to finalize the output generator.
+- Both machines accept **vector + raster** on import (laser raster only for photo-engrave
+  mode, deferred). Still need the exact **container formats/units** each expects (e.g. SVG/
+  DXF/AI vs PNG/TIFF, mm units, origin expression) to finalize the output generator.
 - Default **doghole-snap tolerance** (max acceptable residual before the app forces
   re-centering or a larger lens)?
 - Focus/edge-angle over tolerance: **hard-block**, or **warn + operator override**?
